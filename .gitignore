@@ -1,0 +1,13 @@
+# Môi trường ảo
+.venv/
+
+# Kết quả sinh ra
+output/
+
+# Dữ liệu mẫu sinh tự động (giữ lại make_sample_data.py & README.txt)
+data/360 data raw(Chi tiet-raw).csv
+data/360 data raw(Tong-hop-raw).csv
+
+# Python
+__pycache__/
+*.pyc

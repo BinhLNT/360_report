@@ -1,0 +1,14 @@
+# Thư viện bên thứ ba cần cài (pip install -r requirements.txt)
+pandas
+jinja2
+matplotlib
+weasyprint
+
+# Các module sau là STANDARD LIBRARY của Python (không cần cài):
+#   base64, io, os, datetime, csv, json, argparse, unicodedata, http.server, urllib
+#
+# LƯU Ý cho WeasyPrint (xuất PDF) trên WINDOWS:
+#   WeasyPrint cần thư viện GTK3/Pango native. Nếu chưa cài, hệ thống VẪN xuất
+#   file .html bình thường, chỉ bỏ qua .pdf kèm cảnh báo.
+#   Cài GTK3 Runtime:
+#   https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases

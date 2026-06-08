@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8">
+<title>Báo cáo 360° — {{ s.employee.ho_ten }} ({{ s.employee.ma_nv }})</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:'DejaVu Sans',Arial,sans-serif;color:#222;margin:0;background:#eef1f5}
+.page{max-width:900px;margin:0 auto;background:#fff;padding:46px 52px}
+.cover{text-align:center;border-bottom:4px solid #1F4E79;padding-bottom:26px;margin-bottom:8px}
+.cover .tag{color:#C00000;letter-spacing:3px;font-size:13px;font-weight:bold}
+.cover h1{color:#1F4E79;font-size:27px;margin:10px 0 6px}
+.cover .name{font-size:20px;font-weight:bold;margin-top:14px}
+.cover .meta{color:#666;font-size:14px;margin-top:4px}
+.cover .date{color:#999;font-size:12px;margin-top:10px}
+.sec{margin-top:40px}
+.sec-num{display:inline-block;background:#1F4E79;color:#fff;font-size:12px;font-weight:bold;
+  padding:3px 12px;border-radius:14px;letter-spacing:1px}
+h2{color:#1F4E79;font-size:19px;margin:10px 0 14px;border-bottom:2px solid #e4e9f0;padding-bottom:6px}
+h3{color:#1F4E79;font-size:15px;margin:20px 0 8px}
+p{font-size:13.5px;line-height:1.65}
+.method{background:#f6f8fb;border-left:4px solid #2E75B6;padding:14px 18px;border-radius:0 6px 6px 0;font-size:13px;line-height:1.7}
+.warn{background:#FFF4E5;border-left:4px solid #ED7D31;padding:14px 18px;border-radius:0 6px 6px 0;font-size:12.5px;line-height:1.65;margin:14px 0}
+.score-hero{width:100%;border-radius:12px;margin:18px 0;overflow:hidden}
+.score-hero td{vertical-align:middle}
+.score-hero .big{font-size:54px;font-weight:bold;line-height:1}
+.badge{display:inline-block;color:#fff;border-radius:20px;padding:6px 18px;font-size:14px;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+th,td{border:1px solid #dde3ea;padding:7px 10px}
+th{background:#1F4E79;color:#fff;text-align:left}
+tr:nth-child(even) td{background:#f7f9fc}
+img{max-width:100%;display:block;margin:8px auto}
+.two{display:flex;gap:24px;flex-wrap:wrap} .two>div{flex:1;min-width:280px}
+.ssc{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0}
+.ssc-col{flex:1;min-width:230px;border-radius:8px;padding:14px 16px}
+.ssc-col h4{margin:0 0 8px;font-size:14px} .ssc-col ul{margin:0;padding-left:18px;font-size:12.5px;line-height:1.6}
+.continue{background:#E2F0D9} .continue h4{color:#2E7D32}
+.start{background:#DEEBF7} .start h4{color:#1F4E79}
+.stop{background:#FCE4E4} .stop h4{color:#C00000}
+.ai-note{font-size:11.5px;color:#888;font-style:italic}
+blockquote{background:#f7f9fc;border-left:3px solid #2E75B6;margin:8px 0;padding:10px 16px;font-size:13px;line-height:1.6;border-radius:0 6px 6px 0}
+.tipcard{background:#fbfcfe;border:1px solid #e4e9f0;border-radius:8px;padding:12px 16px;margin:10px 0}
+.tipcard h4{margin:0 0 6px;color:#1F4E79;font-size:14px}
+.tipcard ul{margin:0;padding-left:18px;font-size:12.5px;line-height:1.6}
+.foot{margin-top:46px;border-top:1px solid #eee;padding-top:12px;font-size:11px;color:#999;line-height:1.5}
+.delta-pos{color:#2E7D32} .delta-neg{color:#C00000}
+@page{size:A4;margin:14mm 12mm}
+@media print{ body{background:#fff} .page{max-width:none;padding:0} }
+</style></head><body><div class="page">
+
+{# ===================== COVER ===================== #}
+<div class="cover">
+  <div class="tag">BÁO CÁO ĐÁNH GIÁ 360°</div>
+  <h1>Phản hồi Năng lực &amp; Phẩm chất Lãnh đạo</h1>
+  <div class="name">{{ s.employee.ho_ten }}</div>
+  <div class="meta">Mã: {{ s.employee.ma_nv }} &nbsp;·&nbsp; {{ s.employee.chuc_danh }} &nbsp;·&nbsp; {{ s.employee.bo_phan }}</div>
+  <div class="date">Ngày xuất báo cáo: {{ s.report_date }}</div>
+</div>
+
+{# ===================== PHẦN 1: EXECUTIVE SUMMARY ===================== #}
+<div class="sec">
+  <span class="sec-num">PHẦN 1</span><h2>Tổng quan Báo cáo (Executive Summary)</h2>
+  <div class="method">
+    <b>Mục đích:</b> Đánh giá 360° tổng hợp góc nhìn đa chiều về năng lực &amp; phẩm chất lãnh đạo,
+    phục vụ phát triển cá nhân — không dùng đơn lẻ cho quyết định khen thưởng/kỷ luật.<br>
+    <b>Phương pháp tính điểm:</b> Điểm mỗi người đánh giá =
+    <b>{{ s.weights.pham_chat }}% Phẩm chất + {{ s.weights.nang_luc }}% Năng lực</b>
+    (trọng số tiêu chí theo biểu mẫu). Điểm theo nhóm quan hệ = trung bình cộng người đánh giá cùng nhóm.
+    <b>Tổng 360°</b> = trung bình cộng các nhóm quan hệ có dữ liệu. Người đánh giá chưa hoàn thành bị loại.<br>
+    <b>Tiến độ thu thập:</b> {{ s.completion.status_text }}. Thang điểm 1–5.
+  </div>
+
+  {% if s.data_quality.warning_html %}
+  <div class="warn">⚠️ <b>Lưu ý độ tin cậy:</b> {{ s.data_quality.warning_html|safe }}</div>
+  {% endif %}
+
+  <table class="score-hero" cellspacing="0"><tr>
+    <td bgcolor="#1F4E79" width="38%" style="border:none;color:#fff;text-align:center;padding:22px">
+      <div class="big">{{ s.total_360|fmt }}</div>
+      <div style="font-size:12px">TỔNG ĐIỂM 360° / 5.00</div></td>
+    <td bgcolor="#1F4E79" style="border:none;color:#fff;padding:22px 28px">
+      <span class="badge" style="background:{{ s.badge.color }}">{{ s.badge.label }}</span>
+      <div style="font-size:12px;margin-top:10px">Trung bình cộng điểm các nhóm quan hệ đã đánh giá.</div></td>
+  </tr></table>
+
+  {% if c.executive_summary %}
+  <p>{{ c.executive_summary|safe }}</p>
+  {% endif %}
+
+  <h3>Điểm tổng kết theo nhóm quan hệ</h3>
+  <img src="{{ charts.score_bar }}" alt="Biểu đồ điểm theo nhóm">
+  <table>
+    <tr><th>Nhóm quan hệ</th><th style="text-align:right">Điểm</th><th style="text-align:right">Hoàn thành</th></tr>
+    {% for rel in rel_order %}
+    {% set g = s.group_averages[rel] %}
+    <tr><td>{{ g.label }}</td><td style="text-align:right"><b>{{ g.score|fmt }}</b></td>
+        <td style="text-align:right">{{ g.n_completed }}/{{ g.n_total }}</td></tr>
+    {% endfor %}
+    <tr><td><b>TỔNG 360°</b></td><td style="text-align:right"><b>{{ s.total_360|fmt }}</b></td><td></td></tr>
+  </table>
+</div>
+
+{# ===================== PHẦN 2: RADAR ===================== #}
+<div class="sec">
+  <span class="sec-num">PHẦN 2</span><h2>Radar — Bức tranh đa chiều (10 nhóm tiêu chí)</h2>
+  <p>Vùng tô = điểm tổng của người khác đánh giá (Others); đường nét đứt = từng nhóm quan hệ.
+  <i>Lưu ý: thiếu dữ liệu "Tự đánh giá" nên chưa thể hiện được đường Self.</i></p>
+  <img src="{{ charts.radar }}" alt="Biểu đồ radar">
+  <table>
+    <tr><th>Nhóm tiêu chí</th><th style="text-align:right">Tổng (Others)</th>
+        <th style="text-align:right">Cấp trên</th><th style="text-align:right">Đồng cấp</th>
+        <th style="text-align:right">Cấp dưới</th></tr>
+    {% for sub in s.subcompetencies %}
+    <tr><td>{{ sub.label }}</td>
+        <td style="text-align:right"><b>{{ sub.others|fmt }}</b></td>
+        <td style="text-align:right">{{ sub.cap_tren|fmt }}</td>
+        <td style="text-align:right">{{ sub.dong_cap|fmt }}</td>
+        <td style="text-align:right">{{ sub.cap_duoi|fmt }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+{# ===================== PHẦN 3: MA TRẬN ĐỒNG THUẬN ===================== #}
+<div class="sec">
+  <span class="sec-num">PHẦN 3</span><h2>Ma trận Đồng thuận góc nhìn (thay cho Johari Window)</h2>
+  <p>Johari Window chuẩn cần điểm <b>Tự đánh giá</b> (hiện không có trong dữ liệu). Thay vào đó,
+  ma trận dưới so sánh góc nhìn giữa <b>các nhóm người đánh giá</b> trên 10 nhóm tiêu chí — giúp
+  phát hiện nơi các nhóm nhìn nhận khác nhau (đầu vào quý giá cho coaching).
+  Ngưỡng tham chiếu: {{ s.consensus_threshold }}.</p>
+  <img src="{{ charts.consensus }}" alt="Ma trận đồng thuận">
+</div>
+
+{# ===================== PHẦN 4: CỰC TRỊ & GAP ===================== #}
+<div class="sec">
+  <span class="sec-num">PHẦN 4</span><h2>Điểm cực trị &amp; Phân tích khoảng cách</h2>
+  <div class="two">
+    <div><h3>Top 5 điểm cao nhất</h3>
+      <table><tr><th>Hành vi lãnh đạo</th><th style="text-align:right">Điểm</th></tr>
+      {% for b in s.top5 %}
+      <tr><td>{{ b.label }}</td><td style="text-align:right">{{ b.score|fmt }}</td></tr>
+      {% endfor %}
+      </table></div>
+    <div><h3>Top 5 điểm thấp nhất</h3>
+      <table><tr><th>Hành vi lãnh đạo</th><th style="text-align:right">Điểm</th></tr>
+      {% for b in s.bottom5 %}
+      <tr><td>{{ b.label }}</td><td style="text-align:right">{{ b.score|fmt }}</td></tr>
+      {% endfor %}
+      </table></div>
+  </div>
+
+  <h3>5 chênh lệch lớn nhất giữa hai nhóm rater</h3>
+  {% if s.gaps %}
+  <table><tr><th>Hành vi</th><th style="text-align:right">Cấp dưới</th>
+      <th style="text-align:right">Đồng cấp</th><th style="text-align:right">Δ</th></tr>
+  {% for g in s.gaps %}
+  <tr><td>{{ g.subcomp_label }}</td>
+      <td style="text-align:right">{{ g.a|fmt }}</td>
+      <td style="text-align:right">{{ g.b|fmt }}</td>
+      <td style="text-align:right" class="{{ 'delta-pos' if g.delta >= 0 else 'delta-neg' }}">
+        <b>{{ g.delta|signed }}</b></td></tr>
+  {% endfor %}
+  </table>
+  {% else %}
+  <p><i>Không đủ 2 nhóm rater để so chênh lệch.</i></p>
+  {% endif %}
+  <img src="{{ charts.gap_bar }}" alt="Biểu đồ chênh lệch">
+
+  {% if c.analysis %}
+  <h3>Nhận định</h3>
+  <p>{{ c.analysis|safe }}</p>
+  {% endif %}
+</div>
+
+{# ===================== PHẦN 5: ĐỊNH TÍNH & PHÁT TRIỂN ===================== #}
+<div class="sec">
+  <span class="sec-num">PHẦN 5</span><h2>Phản hồi Định tính &amp; Hướng dẫn phát triển</h2>
+
+  <h3>Tổng hợp Start / Stop / Continue</h3>
+  <div class="ssc">
+    <div class="ssc-col continue"><h4>✅ CONTINUE — Tiếp tục phát huy</h4><ul>
+      {% for item in c.start_stop_continue.continue %}<li>{{ item|safe }}</li>{% endfor %}
+    </ul></div>
+    <div class="ssc-col start"><h4>➤ START — Bắt đầu làm</h4><ul>
+      {% for item in c.start_stop_continue.start %}<li>{{ item|safe }}</li>{% endfor %}
+    </ul></div>
+    <div class="ssc-col stop"><h4>✋ STOP — Cân nhắc dừng</h4><ul>
+      {% for item in c.start_stop_continue.stop %}<li>{{ item|safe }}</li>{% endfor %}
+    </ul></div>
+  </div>
+  {% if c.ai_note %}<p class="ai-note">{{ c.ai_note }}</p>{% endif %}
+
+  <h3>Phụ lục — Trích nguyên văn nhận xét (ẩn danh)</h3>
+  <p class="ai-note">Trích nguyên văn, ẩn danh hoàn toàn (gộp các người đánh giá, không gắn tên/nhóm).</p>
+  {% if s.comments %}
+    {% for cm in s.comments %}<blockquote>{{ cm }}</blockquote>{% endfor %}
+  {% else %}
+    <p><i>Không có ý kiến định tính.</i></p>
+  {% endif %}
+
+  {% if c.development_tips %}
+  <h3>Gợi ý phát triển (Development Tips) cho nhóm điểm thấp</h3>
+  <p class="ai-note">Tự động ánh xạ theo các nhóm có điểm thấp nhất ở Phần 4. Cần OD/HRBP duyệt.</p>
+  {% for label, tips in c.development_tips.items() %}
+  <div class="tipcard"><h4>{{ label }}</h4><ul>
+    {% for tip in tips %}<li>{{ tip|safe }}</li>{% endfor %}
+  </ul></div>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<div class="foot">
+  Phương pháp: {{ s.weights.pham_chat }}% Phẩm chất + {{ s.weights.nang_luc }}% Năng lực → trung bình theo nhóm quan hệ → trung bình các nhóm = Tổng 360°.
+  Báo cáo phục vụ phát triển cá nhân. Dữ liệu thiếu Self &amp; Cấp trên; một số phân tích mang tính tham khảo.
+  {% if content_source == 'default' %}Phần định tính được hệ thống tổng hợp tự động theo luật (không AI), cần OD/HRBP rà soát.{% else %}Phần định tính do Claude hỗ trợ, cần OD/HRBP rà soát trước khi sử dụng chính thức.{% endif %}
+</div>
+</div></body></html>
