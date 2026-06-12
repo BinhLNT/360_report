@@ -26,6 +26,8 @@ Ngoài ra còn tính:
 """
 
 import unicodedata
+from functools import lru_cache
+
 import pandas as pd
 
 import config
@@ -34,6 +36,11 @@ import config
 # ---------------------------------------------------------------------------
 # Tiện ích chuẩn hoá text
 # ---------------------------------------------------------------------------
+# Các hàm chuẩn hoá dưới đây là HÀM THUẦN (kết quả chỉ phụ thuộc tham số chuỗi)
+# và được gọi lặp lại trên rất nhiều dòng với tập giá trị nhỏ (tên tiêu chí,
+# tên nhóm, mối quan hệ, trạng thái). Vì vậy bọc lru_cache để tránh tính lại —
+# tăng tốc đáng kể ở chế độ batch mà KHÔNG đổi kết quả.
+@lru_cache(maxsize=None)
 def strip_accents(text):
     """Bỏ dấu tiếng Việt + về chữ thường để so khớp từ khoá an toàn."""
     if text is None:
@@ -45,6 +52,7 @@ def strip_accents(text):
     return s.lower().strip()
 
 
+@lru_cache(maxsize=None)
 def normalize_relationship(text):
     """Map giá trị cột 'Mối quan hệ' -> key nội bộ (cap_tren/dong_cap/cap_duoi)."""
     norm = strip_accents(text)
@@ -54,21 +62,36 @@ def normalize_relationship(text):
     return None  # không nhận diện được
 
 
+@lru_cache(maxsize=None)
 def classify_subcompetency(ten_muc_tieu, ten_nhom):
     """
     Phân loại 1 'Tên mục tiêu' vào 1 trong 10 nhóm tiêu chí con.
     Trả về (key, label, group) hoặc (None, None, None) nếu không khớp.
+
+    QUAN TRỌNG: 'Tên mục tiêu' có dạng "<Tên năng lực>: <mô tả hành vi>". Tên
+    năng lực nằm ở TIỀN TỐ trước dấu ':'. Chỉ khớp từ khoá trong phần tiền tố để
+    tránh khớp nhầm khi từ khoá xuất hiện trong phần MÔ TẢ — ví dụ hành vi của
+    'Quản trị tổ chức' có chứa cả 'sáng tạo' và 'kỷ luật' trong mô tả.
     """
     norm = strip_accents(ten_muc_tieu)
+    prefix = norm.split(":", 1)[0] if ":" in norm else norm
     for key, label, group, keywords in config.SUBCOMPETENCIES:
-        if any(kw in norm for kw in [strip_accents(k) for k in keywords]):
+        if any(kw in prefix for kw in [strip_accents(k) for k in keywords]):
             return key, label, group
     return None, None, None
 
 
+@lru_cache(maxsize=None)
 def is_completed(trang_thai):
-    """True nếu người đánh giá đã hoàn thành ('Đã đánh giá')."""
-    return "da danh gia" in strip_accents(trang_thai)
+    """True nếu người đánh giá đã hoàn thành.
+
+    Dữ liệu thực dùng nhiều nhãn cho 'đã xong': 'Đã đánh giá' VÀ 'Hoàn thành'.
+    'Chờ đánh giá' / 'Chưa hoàn thành' là CHƯA xong.
+    """
+    s = strip_accents(trang_thai)
+    if "chua" in s:                       # 'Chưa hoàn thành'
+        return False
+    return "da danh gia" in s or "hoan thanh" in s
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +163,7 @@ def compute_evaluator_scores(df_emp):
     return evaluators
 
 
+@lru_cache(maxsize=None)
 def _match_group(ten_nhom, group_key):
     """Khớp 'Tên nhóm mục tiêu' với GROUP_PHAM_CHAT / GROUP_NANG_LUC."""
     norm = strip_accents(ten_nhom)
@@ -216,14 +240,19 @@ def compute_behavior_scores(df_emp):
     """
     Tính điểm pooled & theo nhóm quan hệ cho TỪNG hành vi (mỗi 'Tên mục tiêu').
     Trả về list[dict]: {behavior, subcomp_key, subcomp_label, group,
-                        others, cap_tren, dong_cap, cap_duoi}
+                        others, cap_tren, dong_cap, cap_duoi, comments}
+    `comments` = list[{rel, text}] ý kiến theo từng mục tiêu (per-objective) của
+    TỪNG người đã đánh giá (ẩn danh — chỉ giữ nhóm quan hệ rel).
     """
     # Chỉ lấy dòng của người đã đánh giá.
     df = df_emp[df_emp["trang_thai"].apply(is_completed)].copy()
     df["rel_key"] = df["moi_quan_he"].apply(normalize_relationship)
+    has_ykien = "y_kien_muc_tieu" in df.columns
 
     behaviors = []
-    for behavior_text, rows in df.groupby("ten_muc_tieu", sort=False):
+    # observed=True: chỉ lặp các 'Tên mục tiêu' THỰC SỰ có (an toàn khi cột này
+    # là dtype 'category' — tránh sinh nhóm rỗng cho category không xuất hiện).
+    for behavior_text, rows in df.groupby("ten_muc_tieu", sort=False, observed=True):
         sub_key, sub_label, group = classify_subcompetency(behavior_text, None)
         if sub_key is None:
             continue  # bỏ qua tiêu chí không phân loại được
@@ -239,8 +268,24 @@ def compute_behavior_scores(df_emp):
         for rel_key in config.RELATIONSHIP_ORDER:
             v = rows[rows["rel_key"] == rel_key]["diem"].dropna()
             rec[rel_key] = float(v.mean()) if len(v) else None
+        rec["comments"] = _collect_behavior_comments(rows) if has_ykien else []
         behaviors.append(rec)
     return behaviors
+
+
+def _collect_behavior_comments(rows):
+    """Gom ý kiến theo từng mục tiêu của từng người (ẩn danh theo nhóm quan hệ).
+
+    Bỏ các giá trị rỗng / 'n/a'. Giữ NGUYÊN từng ý kiến (không gộp trùng) để
+    phản ánh đúng 'ý kiến của TỪNG người'. Trả về list[{rel, text}].
+    """
+    out = []
+    for rel_key, txt in zip(rows["rel_key"], rows["y_kien_muc_tieu"]):
+        t = str(txt).strip()
+        if t.lower() in config.COMMENT_JUNK_TOKENS:
+            continue
+        out.append({"rel": rel_key, "text": t})
+    return out
 
 
 def top_bottom_behaviors(behaviors, n=5):

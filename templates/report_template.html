@@ -11,6 +11,10 @@ body{font-family:'DejaVu Sans',Arial,sans-serif;color:#222;margin:0;background:#
 .cover .name{font-size:20px;font-weight:bold;margin-top:14px}
 .cover .meta{color:#666;font-size:14px;margin-top:4px}
 .cover .date{color:#999;font-size:12px;margin-top:10px}
+.cover-tags{margin-top:14px}
+.ctag{display:inline-block;background:#eef3fa;color:#1F4E79;border:1px solid #cdd9e8;border-radius:16px;
+  padding:4px 14px;font-size:12.5px;font-weight:bold;margin:0 4px}
+.cover-summary{margin-top:12px;font-style:italic;color:#444;font-size:13.5px}
 .sec{margin-top:40px}
 .sec-num{display:inline-block;background:#1F4E79;color:#fff;font-size:12px;font-weight:bold;
   padding:3px 12px;border-radius:14px;letter-spacing:1px}
@@ -53,6 +57,13 @@ blockquote{background:#f7f9fc;border-left:3px solid #2E75B6;margin:8px 0;padding
   <div class="name">{{ s.employee.ho_ten }}</div>
   <div class="meta">Mã: {{ s.employee.ma_nv }} &nbsp;·&nbsp; {{ s.employee.chuc_danh }} &nbsp;·&nbsp; {{ s.employee.bo_phan }}</div>
   <div class="date">Ngày xuất báo cáo: {{ s.report_date }}</div>
+  {% if c.meta and (c.meta.nhom_nhan_tai or c.meta.muc_do_san_sang_thang_tien) %}
+  <div class="cover-tags">
+    {% if c.meta.nhom_nhan_tai %}<span class="ctag">🏅 {{ c.meta.nhom_nhan_tai }}</span>{% endif %}
+    {% if c.meta.muc_do_san_sang_thang_tien %}<span class="ctag">↗ {{ c.meta.muc_do_san_sang_thang_tien }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {% if c.meta and c.meta.tom_tat_mot_dong %}<div class="cover-summary">“{{ c.meta.tom_tat_mot_dong }}”</div>{% endif %}
 </div>
 
 {# ===================== PHẦN 1: EXECUTIVE SUMMARY ===================== #}
@@ -206,9 +217,54 @@ blockquote{background:#f7f9fc;border-left:3px solid #2E75B6;margin:8px 0;padding
   {% endif %}
 </div>
 
+{# ===================== PHẦN 6: ĐÁNH GIÁ AI & ĐỊNH HƯỚNG ===================== #}
+{% if c.ai %}
+<div class="sec">
+  <span class="sec-num">PHẦN 6</span><h2>Đánh giá AI &amp; Định hướng phát triển</h2>
+  <p class="ai-note">Nội dung do AI tổng hợp từ số liệu 360°; cần HRBP/OD rà soát trước khi dùng chính thức.</p>
+
+  <div class="two">
+    <div class="ssc-col continue"><h4>💪 Điểm mạnh nổi bật</h4><ul>
+      {% for x in c.ai.diem_manh %}<li>{{ x|safe }}</li>{% endfor %}
+    </ul></div>
+    <div class="ssc-col stop"><h4>🎯 Điểm cần cải thiện</h4><ul>
+      {% for x in c.ai.diem_can_cai_thien %}<li>{{ x|safe }}</li>{% endfor %}
+    </ul></div>
+  </div>
+
+  {% if c.ai.tiem_nang_phat_trien %}
+  <h3>Tiềm năng phát triển</h3><p>{{ c.ai.tiem_nang_phat_trien|safe }}</p>
+  {% endif %}
+
+  {% if c.ai.khuyen_nghi_dao_tao %}
+  <div class="tipcard"><h4>Khuyến nghị đào tạo &amp; phát triển</h4><ul>
+    {% for x in c.ai.khuyen_nghi_dao_tao %}<li>{{ x|safe }}</li>{% endfor %}
+  </ul></div>
+  {% endif %}
+
+  {% if c.ai.lo_trinh_90_ngay %}
+  <div class="tipcard"><h4>Lộ trình hành động 90 ngày</h4><ul>
+    {% for x in c.ai.lo_trinh_90_ngay %}<li>{{ x|safe }}</li>{% endfor %}
+  </ul></div>
+  {% endif %}
+
+  {% if c.ai.dinh_huong_vai_tro %}
+  <h3>Định hướng vai trò / lộ trình nghề nghiệp</h3><p>{{ c.ai.dinh_huong_vai_tro|safe }}</p>
+  {% endif %}
+
+  {% if c.ai.canh_bao_rui_ro %}
+  <div class="warn">⚠️ <b>Cảnh báo &amp; lưu ý:</b> {{ c.ai.canh_bao_rui_ro|safe }}</div>
+  {% endif %}
+
+  {% if c.ai.khuyen_nghi %}
+  <h3>Khuyến nghị chung</h3><p>{{ c.ai.khuyen_nghi|safe }}</p>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="foot">
   Phương pháp: {{ s.weights.pham_chat }}% Phẩm chất + {{ s.weights.nang_luc }}% Năng lực → trung bình theo nhóm quan hệ → trung bình các nhóm = Tổng 360°.
   Báo cáo phục vụ phát triển cá nhân. Dữ liệu thiếu Self &amp; Cấp trên; một số phân tích mang tính tham khảo.
-  {% if content_source == 'default' %}Phần định tính được hệ thống tổng hợp tự động theo luật (không AI), cần OD/HRBP rà soát.{% else %}Phần định tính do Claude hỗ trợ, cần OD/HRBP rà soát trước khi sử dụng chính thức.{% endif %}
+  {% if content_source == 'default' %}Phần định tính được hệ thống tổng hợp tự động theo luật (chưa có nội dung AI), cần OD/HRBP rà soát.{% else %}Phần định tính do AI tổng hợp từ số liệu, cần OD/HRBP rà soát trước khi sử dụng chính thức.{% endif %}
 </div>
 </div></body></html>

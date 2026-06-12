@@ -77,6 +77,7 @@ _CHI_TIET_COL_INDEX = {
     "ten_muc_tieu": 14,   # Tên mục tiêu (tiêu chí cụ thể)
     "he_so": 15,          # Hệ Số ÁP DỤNG
     "diem": 16,           # ĐIỂM ĐÁNH GIÁ
+    "y_kien_muc_tieu": 17,  # Ý KIẾN theo TỪNG mục tiêu (khác cột "Ý kiến chung" ở vị trí 5)
 }
 
 
@@ -87,12 +88,18 @@ def load_chi_tiet(path):
     """
     header_row = _find_header_row(path, must_contain=["Mối quan hệ", "ĐIỂM ĐÁNH GIÁ"])
 
-    # Đọc toàn bộ là string để không mất dữ liệu; tự ép kiểu sau.
+    # CHỈ đọc các cột cần (usecols) -> nhẹ hơn nhiều với file lớn (bỏ cột rác cuối).
+    n_needed = max(_CHI_TIET_COL_INDEX.values()) + 1          # = 17
+    header_names = _read_header_names(path, header_row)
+    usecols = range(min(n_needed, len(header_names))) if header_names else None
+
+    # Đọc dạng string để không mất dữ liệu; tự ép kiểu sau.
     raw = pd.read_csv(
         path,
         encoding=config.ENCODING,
         skiprows=header_row,
         header=0,
+        usecols=usecols,
         dtype=str,
         keep_default_na=False,
         na_filter=False,
@@ -107,6 +114,7 @@ def load_chi_tiet(path):
         else:
             data[name] = ""
     df = pd.DataFrame(data)
+    del raw  # giải phóng bản đọc thô sớm
 
     # Ép kiểu số cho các cột tính toán.
     for col in ["tong_diem", "trong_so", "he_so", "diem"]:
@@ -114,6 +122,16 @@ def load_chi_tiet(path):
 
     # Loại các dòng rác (không có tên mục tiêu hoặc không có mã nhân viên).
     df = df[(df["ten_muc_tieu"] != "") & (df["ma_nhan_vien"] != "")].reset_index(drop=True)
+
+    # TỐI ƯU BỘ NHỚ cho file lớn (>20MB, 500+ NV): các cột chuỗi LẶP LẠI nhiều
+    # (văn bản tiêu chí dài lặp 24x/người, ý kiến, nhóm, quan hệ, định danh...)
+    # -> 'category' lưu mỗi giá trị 1 lần + mã số. KHÔNG đổi giá trị, chỉ đổi cách
+    # lưu. (ma_ad GIỮ nguyên object vì là khoá groupby; ten_muc_tieu là khoá
+    # groupby nhưng đã thêm observed=True ở score_calculator.)
+    for col in ["ma_nhan_vien", "ho_ten", "chuc_danh", "bo_phan", "cap_bac",
+                "ma_bieu_mau", "moi_quan_he", "trang_thai", "ten_nhom",
+                "ten_muc_tieu", "y_kien_chung", "y_kien_muc_tieu"]:
+        df[col] = df[col].astype("category")
     return df
 
 

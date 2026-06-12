@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>360° Report — Bảng điều khiển</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;margin:0;background:#eef1f5;color:#222}
+header{background:#1F4E79;color:#fff;padding:16px 28px}
+header h1{margin:0;font-size:20px} header .sub{font-size:12.5px;opacity:.85;margin-top:3px}
+.wrap{max-width:1180px;margin:22px auto;padding:0 18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:#fff;border-radius:10px;padding:18px 20px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.card h2{margin:0 0 12px;font-size:15px;color:#1F4E79;border-bottom:2px solid #eef1f5;padding-bottom:8px}
+.step-num{display:inline-block;background:#1F4E79;color:#fff;border-radius:50%;width:22px;height:22px;
+  text-align:center;line-height:22px;font-size:12px;margin-right:6px}
+.frow{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:4px 0}
+.pill{font-size:11px;padding:2px 9px;border-radius:10px;font-weight:bold}
+.ok{background:#E2F0D9;color:#2E7D32} .miss{background:#FCE4E4;color:#C00000} .muted{color:#888}
+button{background:#1F4E79;color:#fff;border:0;border-radius:7px;padding:10px 16px;font-size:13.5px;
+  cursor:pointer;font-weight:600} button:hover{background:#163a5c} button:disabled{background:#9bb0c4;cursor:not-allowed}
+button.sec{background:#eef3fa;color:#1F4E79;border:1px solid #cdd9e8}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+a.dl{font-size:12.5px;color:#1F4E79;text-decoration:none;border:1px solid #cdd9e8;border-radius:7px;
+  padding:8px 12px;display:inline-block} a.dl:hover{background:#eef3fa}
+.finput{font-size:12px;width:100%;margin:2px 0 8px;border:1px dashed #cdd9e8;border-radius:6px;padding:6px}
+.stat{display:flex;gap:14px;margin:6px 0 4px;flex-wrap:wrap}
+.stat .box{background:#f6f8fb;border-radius:8px;padding:10px 14px;text-align:center;min-width:78px}
+.stat .box b{font-size:22px;color:#1F4E79;display:block}
+.stat .box span{font-size:11px;color:#666}
+label.fld{font-size:12px;color:#555;display:block;margin:8px 0 3px}
+select,input[type=text],input[type=number]{width:100%;padding:8px;border:1px solid #cdd9e8;border-radius:6px;font-size:13px}
+.filters{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px;align-items:end}
+.chk{font-size:13px;display:flex;align-items:center;gap:6px;margin-top:6px}
+#progress{position:sticky;top:0;z-index:20;background:#fff;border:1px solid #cdd9e8;border-radius:10px;
+  padding:12px 16px;margin-bottom:16px;display:none}
+#progress .bar{height:10px;background:#eef1f5;border-radius:6px;overflow:hidden;margin-top:8px}
+#progress .fill{height:100%;background:#2E75B6;width:0;transition:width .3s}
+#progress.err{border-color:#C00000} #progress.err .fill{background:#C00000}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:10px;overflow:hidden}
+th,td{padding:9px 11px;border-bottom:1px solid #eef1f5;text-align:left}
+th{background:#1F4E79;color:#fff;position:sticky;top:0;font-size:12px}
+tr:hover td{background:#f7f9fc}
+.tag{font-size:10.5px;padding:2px 7px;border-radius:9px}
+.t-yes{background:#E2F0D9;color:#2E7D32} .t-no{background:#f0f0f0;color:#999}
+.linkbtn{color:#1F4E79;cursor:pointer;text-decoration:underline;font-size:12.5px;background:none;border:0;padding:0}
+.tablebar{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}
+.tablebar h2{margin:0;font-size:16px;color:#1F4E79}
+.hint{font-size:12px;color:#777;margin-top:6px}
+.scroll{max-height:560px;overflow:auto;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.filters{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header>
+  <h1>📊 Hệ thống Báo cáo Đánh giá 360°</h1>
+  <div class="sub">Bảng điều khiển — tính điểm, sinh File thứ 4, lọc &amp; xuất báo cáo PDF hàng loạt</div>
+</header>
+
+<div class="wrap">
+  <div id="progress"><div id="pmsg">...</div><div class="bar"><div class="fill" id="pfill"></div></div></div>
+
+  <div class="grid">
+    <!-- DỮ LIỆU -->
+    <div class="card">
+      <h2>Dữ liệu đầu vào (tải lên 3 file)</h2>
+      <div class="frow"><span>① Chi tiết <b style="color:#C00000">*</b></span><span id="f-ct" class="pill miss">—</span></div>
+      <input type="file" id="up-ct" accept=".csv" class="finput">
+      <div class="frow"><span>② Tổng hợp</span><span id="f-th" class="pill miss">—</span></div>
+      <input type="file" id="up-th" accept=".csv" class="finput">
+      <div class="frow"><span>③ Tổng hợp tiêu chí</span><span id="f-tc" class="pill miss">—</span></div>
+      <input type="file" id="up-tc" accept=".csv" class="finput">
+      <div class="btnrow"><button class="sec" onclick="uploadInputs()">⬆ Tải 3 file lên</button></div>
+      <div class="hint">CSV <b>UTF-8</b>. (*) Chi tiết là bắt buộc. Tải xong → bấm Bước 1 để xử lý.</div>
+    </div>
+
+    <!-- BƯỚC 1 -->
+    <div class="card">
+      <h2><span class="step-num">1</span>Sinh File thứ 4</h2>
+      <div class="stat" id="s1-stat" style="display:none">
+        <div class="box"><b id="s1-emp">0</b><span>nhân viên</span></div>
+        <div class="box"><b id="s1-full">0</b><span>đủ điểm</span></div>
+      </div>
+      <div class="btnrow">
+        <button id="btn-step1" onclick="step1()">Tính điểm &amp; Sinh File thứ 4</button>
+      </div>
+      <div class="btnrow" id="s1-dl" style="display:none">
+        <a class="dl" href="/download/file4">⬇ File thứ 4 (.xlsx)</a>
+        <a class="dl" href="/download/prompt">⬇ Prompt chung (.txt)</a>
+      </div>
+    </div>
+
+    <!-- BƯỚC 2 -->
+    <div class="card">
+      <h2><span class="step-num">2</span>Nội dung AI &amp; Rà soát</h2>
+      <div class="frow"><span>Đã điền AI</span><span id="ai-filled" class="pill muted">0</span></div>
+      <div class="frow"><span>Đã duyệt</span><span id="ai-approved" class="pill muted">0</span></div>
+      <div class="hint"><b>Cách A:</b> đưa prompt chung cho Claude → nhận file <b>CSV</b> → nạp vào đây (tự ghép theo Mã NV):</div>
+      <div class="btnrow">
+        <input type="file" id="up-aicsv" accept=".csv" class="finput">
+        <button class="sec" onclick="uploadAiCsv()">⬆ Nạp kết quả AI (CSV)</button>
+      </div>
+      <div class="hint"><b>Cách B:</b> tự sửa trong Excel + đặt “Đã duyệt” → tải File thứ 4 lên:</div>
+      <div class="btnrow">
+        <input type="file" id="up-file4" accept=".xlsx" class="finput">
+        <button class="sec" onclick="uploadFile4()">⬆ Tải lên File thứ 4</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BƯỚC 3: LỌC + XUẤT -->
+  <div class="card" style="margin-top:16px">
+    <h2><span class="step-num">3</span>Lọc &amp; Xuất báo cáo PDF</h2>
+    <div class="filters">
+      <div><label class="fld">Bộ phận</label><select id="flt-bp"><option value="">— Tất cả —</option></select></div>
+      <div><label class="fld">Cấp bậc</label><select id="flt-cb"><option value="">— Tất cả —</option></select></div>
+      <div><label class="fld">Xếp loại</label><select id="flt-rt"><option value="">— Tất cả —</option></select></div>
+      <div><label class="fld">Chức danh (tìm)</label><input type="text" id="flt-cd" placeholder="vd: Giám đốc"></div>
+    </div>
+    <div style="display:flex;gap:18px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <label class="chk"><input type="checkbox" id="flt-approved"> Chỉ người “Đã duyệt”</label>
+      <label class="chk"><input type="checkbox" id="opt-nopdf"> Chỉ HTML (bỏ PDF, nhanh hơn)</label>
+      <span style="flex:1"></span>
+      <button id="btn-build" onclick="build()">📄 Xuất báo cáo cho danh sách đang lọc</button>
+      <a class="dl" href="/download/reports-zip" id="dl-zip" style="display:none">⬇ Tải tất cả PDF (.zip)</a>
+    </div>
+    <div class="hint" id="report-count"></div>
+  </div>
+
+  <!-- BẢNG NHÂN VIÊN -->
+  <div class="tablebar">
+    <h2>Danh sách nhân viên <span id="emp-count" class="muted" style="font-size:13px"></span></h2>
+    <input type="text" id="tbl-search" placeholder="🔎 Tìm mã / tên..." style="max-width:280px" oninput="renderTable()">
+  </div>
+  <div class="scroll">
+    <table><thead><tr>
+      <th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức danh</th><th>Cấp bậc</th>
+      <th>Tổng 360°</th><th>Xếp loại</th><th>AI</th><th>Duyệt</th><th>Báo cáo</th>
+    </tr></thead><tbody id="emp-body"></tbody></table>
+  </div>
+  <div class="hint">Bộ lọc phía trên áp dụng cho cả bảng này lẫn nút “Xuất báo cáo”. Bấm “Xem” để mở báo cáo.</div>
+</div>
+
+<script>
+let EMP = [];
+function norm(s){return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();}
+function $(id){return document.getElementById(id);}
+
+function pill(el, present, text){el.className='pill '+(present?'ok':'miss');el.textContent=text;}
+
+async function loadState(){
+  const s = await (await fetch('/api/state')).json();
+  pill($('f-ct'), s.files.chi_tiet.present, s.files.chi_tiet.present?(s.files.chi_tiet.size_mb+' MB'):'thiếu');
+  pill($('f-th'), s.files.tong_hop.present, s.files.tong_hop.present?(s.files.tong_hop.size_mb+' MB'):'thiếu');
+  pill($('f-tc'), s.files.tieu_chi.present, s.files.tieu_chi.present?(s.files.tieu_chi.size_mb+' MB'):'thiếu');
+  $('ai-filled').textContent = s.file4_ai_filled; $('ai-filled').className='pill '+(s.file4_ai_filled? 'ok':'muted');
+  $('ai-approved').textContent = s.file4_approved; $('ai-approved').className='pill '+(s.file4_approved? 'ok':'muted');
+  if(s.summary && s.summary.done){
+    $('s1-stat').style.display='flex'; $('s1-dl').style.display='flex';
+    $('s1-emp').textContent=s.summary.n_emp; $('s1-full').textContent=s.summary.n_full;
+    fillSelect($('flt-bp'), s.summary.bo_phan); fillSelect($('flt-cb'), s.summary.cap_bac);
+    fillSelect($('flt-rt'), s.summary.ratings_list);
+  }
+  $('report-count').textContent = s.n_reports ? ('Đã có '+s.n_reports+' báo cáo PDF trong output/reports/') : '';
+  $('dl-zip').style.display = s.n_reports ? 'inline-block' : 'none';
+  const busy = s.task.running;
+  $('btn-step1').disabled = busy; $('btn-build').disabled = busy;
+  if(busy) showProgress(s.task);
+}
+function fillSelect(sel, items){
+  const cur=sel.value;
+  sel.length=1;  // giữ option đầu "— Tất cả —", dựng lại phần còn lại
+  (items||[]).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;  // giữ lựa chọn cũ nếu còn
+}
+
+function showProgress(t){
+  const p=$('progress'); p.style.display='block'; p.classList.toggle('err', !!t.error);
+  $('pmsg').textContent = t.message || t.name;
+  $('pfill').style.width = (t.total? Math.round(t.current/t.total*100):(t.running?15:100))+'%';
+}
+
+let polling=false;
+function startPolling(){
+  if(polling) return; polling=true;
+  const iv=setInterval(async()=>{
+    const t = await (await fetch('/api/progress')).json();
+    showProgress(t);
+    if(t.done && !t.running){
+      clearInterval(iv); polling=false;
+      setTimeout(()=>{ $('progress').style.display = t.error?'block':'none'; }, t.error?6000:1500);
+      await loadState(); await loadEmployees();
+    }
+  }, 1000);
+}
+
+async function step1(){
+  await fetch('/api/step1',{method:'POST'}); $('btn-step1').disabled=true; startPolling();
+}
+async function build(){
+  const body={ bo_phan:$('flt-bp').value, cap_bac:$('flt-cb').value, rating:$('flt-rt').value,
+    chuc_danh:$('flt-cd').value, only_approved:$('flt-approved').checked, no_pdf:$('opt-nopdf').checked };
+  await fetch('/api/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  $('btn-build').disabled=true; startPolling();
+}
+async function uploadInputs(){
+  const map={chi_tiet:'up-ct', tong_hop:'up-th', tieu_chi:'up-tc'};
+  const fd=new FormData(); let any=false;
+  for(const k in map){const f=$(map[k]).files[0]; if(f){fd.append(k,f); any=true;}}
+  if(!any){alert('Hãy chọn ít nhất file Chi tiết');return;}
+  const r=await (await fetch('/api/upload-inputs',{method:'POST',body:fd})).json();
+  if(r.ok){ alert('Đã tải lên: '+r.saved.join(', ')+'.\nBấm “Bước 1” để xử lý ra File thứ 4.');
+    EMP=[]; renderTable(); $('s1-stat').style.display='none'; loadState(); }
+  else alert('Lỗi: '+(r.error||'?'));
+}
+async function uploadAiCsv(){
+  const f=$('up-aicsv').files[0]; if(!f){alert('Chọn file .csv kết quả AI');return;}
+  const fd=new FormData(); fd.append('file', f);
+  const r=await (await fetch('/api/upload-ai-csv',{method:'POST',body:fd})).json();
+  if(r.ok){ alert('Đã nạp kết quả AI: cập nhật '+r.updated+' nhân viên (CSV có '+r.rows_in_csv+' dòng).'
+      +(r.unknown_columns&&r.unknown_columns.length? '\nCột lạ bị bỏ qua: '+r.unknown_columns.join(', '):''));
+    loadState(); loadEmployees(); }
+  else alert('Lỗi: '+(r.error||'?'));
+}
+async function uploadFile4(){
+  const f=$('up-file4').files[0]; if(!f){alert('Chọn file .xlsx trước');return;}
+  const fd=new FormData(); fd.append('file', f);
+  const r=await (await fetch('/api/upload-file4',{method:'POST',body:fd})).json();
+  if(r.ok){alert('Đã tải lên. Số NV có nội dung AI: '+r.ai_filled); loadState(); loadEmployees();}
+  else alert('Lỗi: '+(r.error||'?'));
+}
+
+async function loadEmployees(){
+  EMP = await (await fetch('/api/employees')).json();
+  renderTable();
+}
+function passFilter(e){
+  const fv=id=>$(id).value;
+  const m=(val,w)=> !w || w.split(',').some(p=>p.trim() && norm(val).includes(norm(p)));
+  if(!m(e.bo_phan, fv('flt-bp'))) return false;
+  if(!m(e.cap_bac, fv('flt-cb'))) return false;
+  if(!m(e.rating, fv('flt-rt'))) return false;
+  if(!m(e.chuc_danh, fv('flt-cd'))) return false;
+  if($('flt-approved').checked && !e.approved) return false;
+  const q=$('tbl-search').value;
+  if(q && !(norm(e.ma_nv).includes(norm(q))||norm(e.ho_ten).includes(norm(q)))) return false;
+  return true;
+}
+function renderTable(){
+  const rows = EMP.filter(passFilter);
+  $('emp-count').textContent = '('+rows.length+'/'+EMP.length+')';
+  const tag=(b,y,n)=>`<span class="tag ${b?'t-yes':'t-no'}">${b?y:n}</span>`;
+  $('emp-body').innerHTML = rows.map(e=>`<tr>
+    <td>${e.ma_nv}</td><td>${e.ho_ten||''}</td><td>${e.bo_phan||''}</td><td>${e.chuc_danh||''}</td>
+    <td>${e.cap_bac||''}</td>
+    <td>${e.tong_360!=null? e.tong_360.toFixed(2):'<span class="muted">N/A</span>'}</td>
+    <td><span class="tag" style="background:${e.rating_color}22;color:${e.rating_color}">${e.rating}</span></td>
+    <td>${tag(e.has_ai,'có','—')}</td><td>${tag(e.approved,'duyệt','—')}</td>
+    <td>${e.has_pdf
+        ? `<a class="linkbtn" href="/reports/BAOCAO_${e.ma_nv}.pdf" target="_blank">PDF</a>`
+        : `<button class="linkbtn" onclick="window.open('/preview/${e.ma_nv}','_blank')">Xem thử</button>`}</td>
+  </tr>`).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:20px">Không có nhân viên khớp bộ lọc.</td></tr>';
+}
+['flt-bp','flt-cb','flt-rt','flt-cd','flt-approved'].forEach(id=>{
+  document.addEventListener('DOMContentLoaded',()=>$(id).addEventListener('input', renderTable));
+});
+
+loadState(); loadEmployees();
+setInterval(loadState, 5000);
+</script>
+</body></html>

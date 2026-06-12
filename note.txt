@@ -1,0 +1,11 @@
+- không cần prompt của claude nữa
+- input vẫn là 3 sheeet file chi tiết và tổng hợp, tong hop tieu chí
+- Tạo ra file thứ 4 (yêu cầu đúng format) - đề xuất trường thông tin (VD: cần cải thiện, có tiềm năng ....) để AI gen+ promt data tổng (prompt dùng chung cho toàn bộ)
+- sau khi người dùng nhập lại thông tin từ file thứ 3 cùng với thêm các thông tin mà AI gen
+- Sẽ nhập vô trong template với số lượng lớn (500 người trở lên)
+- có khả năng trích xuất ra file pdf dựa filter dựa trên phòng ban, chức vụ,...
+
+- lấy thêm ý kiến của từng người (lưu vô trong file 4).
+- Trong prompt đang yêu cầu claude đưa ra thành định dạng json. yêu cầu chuyển thành csv utf8 hoặc xlsx để người dùng có thể tải xuống và input dễ dàng hơn.
+
+- không có ide thì có cách nào chạy code không.

@@ -2,13 +2,17 @@
 pandas
 jinja2
 matplotlib
-weasyprint
+openpyxl          # đọc/ghi Excel (.xlsx) cho chế độ batch (File thứ 4)
+playwright        # xuất PDF hàng loạt bằng headless Chromium (Phase 3)
+flask             # giao diện web (dashboard) — webapp.py
 
 # Các module sau là STANDARD LIBRARY của Python (không cần cài):
 #   base64, io, os, datetime, csv, json, argparse, unicodedata, http.server, urllib
 #
-# LƯU Ý cho WeasyPrint (xuất PDF) trên WINDOWS:
-#   WeasyPrint cần thư viện GTK3/Pango native. Nếu chưa cài, hệ thống VẪN xuất
-#   file .html bình thường, chỉ bỏ qua .pdf kèm cảnh báo.
-#   Cài GTK3 Runtime:
-#   https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
+# SAU KHI cài playwright, PHẢI tải trình duyệt Chromium 1 lần:
+#   python -m playwright install chromium
+#
+# LƯU Ý cho WeasyPrint (chỉ dùng ở main.py 1-báo-cáo) trên WINDOWS:
+#   WeasyPrint cần GTK3/Pango native. Chế độ BATCH (batch_report.py) dùng
+#   Playwright nên KHÔNG cần GTK.
+#   GTK3 Runtime: https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases

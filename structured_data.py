@@ -58,6 +58,7 @@ def build_structured_data(ma_nv, df_chi_tiet, report_date=None):
     status_label = "Đã hoàn thành" if (n_total > 0 and n_completed == n_total) else "Chưa hoàn thành"
     status_text = f"{status_label} {n_completed}/{n_total}"
     comments = _collect_comments(evaluators)
+    all_comments = _collect_all_comments(evaluators)
     opinion_text = "\n\n".join(comments)
 
     # 4. Badge xếp loại.
@@ -85,10 +86,12 @@ def build_structured_data(ma_nv, df_chi_tiet, report_date=None):
         "total_360": total_360,
         "badge": badge,
         "subcompetencies": subcomp_matrix,
+        "behaviors": _compact_behaviors(behaviors),
         "top5": _simplify_behaviors(top5),
         "bottom5": _simplify_behaviors(bottom5),
         "gaps": gaps,
         "comments": comments,
+        "all_comments": all_comments,
         "opinion_text": opinion_text,
         "data_quality": data_quality,
         "relationship_order": config.RELATIONSHIP_ORDER,
@@ -112,6 +115,20 @@ def _collect_comments(evaluators):
             seen.add(txt)
             comments.append(txt)
     return comments
+
+
+def _collect_all_comments(evaluators):
+    """Lấy TOÀN BỘ ý kiến của TỪNG người đánh giá đã hoàn thành (không gộp trùng),
+    ẩn danh theo NHÓM quan hệ. Trả về list[{rel, text}]."""
+    out = []
+    for e in evaluators:
+        if not e["completed"]:
+            continue
+        txt = (e["y_kien_chung"] or "").strip()
+        if txt and txt.lower() not in ("nan", "n/a", "#n/a"):
+            rel = config.RELATIONSHIP_DISPLAY.get(e["relationship"], "Khác")
+            out.append({"rel": rel, "text": txt})
+    return out
 
 
 def _make_badge(total):
@@ -156,6 +173,26 @@ def _assess_quality(group_averages):
         "n_cap_duoi": n_cap_duoi,
         "warning_html": " ".join(parts),
     }
+
+
+def _compact_behaviors(behaviors):
+    """Giữ TOÀN BỘ hành vi (điểm theo từng nhóm rater) để dựng ma trận File thứ 4.
+
+    Mỗi phần tử: {subcomp_key, behavior, others, cap_tren, dong_cap, cap_duoi}.
+    Exporter sẽ gom theo subcomp_key + thứ tự để khớp vào 24 hành vi chuẩn.
+    """
+    return [
+        {
+            "subcomp_key": b["subcomp_key"],
+            "behavior": b["behavior"],
+            "others": b.get("others"),
+            "cap_tren": b.get("cap_tren"),
+            "dong_cap": b.get("dong_cap"),
+            "cap_duoi": b.get("cap_duoi"),
+            "comments": b.get("comments", []),   # ý kiến theo từng mục tiêu (per-objective)
+        }
+        for b in behaviors
+    ]
 
 
 def _simplify_behaviors(behaviors):

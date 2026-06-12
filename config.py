@@ -14,8 +14,8 @@ tĩnh do con người biên soạn, hệ thống chỉ chọn lọc theo điểm
 # 1. TÊN FILE & ENCODING
 # ---------------------------------------------------------------------------
 # Tên 2 file đầu vào (đặt trong thư mục data/). Đổi tại đây nếu tên file khác.
-INPUT_CHI_TIET = "360 data raw(Chi tiet-raw).csv"      # File chi tiết theo tiêu chí
-INPUT_TONG_HOP = "360 data raw(Tong-hop-raw).csv"      # File tổng hợp gốc (metadata + ý kiến)
+INPUT_CHI_TIET = "Report_360_MASKED_v2(Chi tiet).csv"           # File chi tiết theo tiêu chí
+INPUT_TONG_HOP = "Report_360_MASKED_v2(Tong hop).csv"           # File tổng hợp gốc (metadata + ý kiến)
 
 # CSV của hệ thống xuất ra từ Excel/Google Sheet thường là UTF-8 có BOM.
 # 'utf-8-sig' đọc/ghi đúng cả khi có hoặc không có BOM.
@@ -191,3 +191,182 @@ OUT_PDF = "BAOCAO_{ma_nv}.pdf"
 # Tên template Jinja2.
 TEMPLATE_DIR = "templates"
 TEMPLATE_FILE = "report_template.html"
+
+# ===========================================================================
+# 9. CHẾ ĐỘ BATCH (>= 500 nhân viên) — "FILE THỨ 4" + PROMPT CHUNG
+# ===========================================================================
+# Quy trình mới: thay vì 1 prompt/người, hệ thống tính điểm cho TOÀN BỘ nhân
+# viên rồi sinh:
+#   (1) 1 PROMPT CHUNG (prompt_chung.txt) dùng cho mọi nhân viên.
+#   (2) "FILE THỨ 4" dạng Excel: mỗi nhân viên 1 dòng = cột dữ liệu gốc + cột
+#       AI (để Claude điền) + cột quy trình rà soát của con người.
+# Sau khi con người rà soát/duyệt, dữ liệu này được ghép vào template để xuất
+# báo cáo PDF hàng loạt (có bộ lọc).
+
+OUT_BATCH_XLSX = "360_AI_input.xlsx"          # "File thứ 4" (skeleton để AI điền)
+OUT_COMMON_PROMPT = "prompt_chung.txt"        # 1 prompt dùng chung cho toàn bộ
+BATCH_SHEET_NAME = "BaoCao_360"               # tên sheet chính trong file thứ 4
+
+# --- 9a. Cột DỮ LIỆU GỐC / CONTEXT (read-only đối với người rà soát) ---------
+# (key nội bộ, nhãn hiển thị trên Excel). Các cột chuc_danh/bo_phan/cap_bac/
+# manager/team/xep_loai đồng thời là TIÊU CHÍ LỌC khi xuất PDF.
+SOURCE_FIELDS = [
+    ("ma_nv",         "Mã nhân viên"),
+    ("ho_ten",        "Họ và tên"),
+    ("chuc_danh",     "Chức danh"),               # filter: chức vụ
+    ("bo_phan",       "Bộ phận"),                 # filter: phòng ban
+    ("cap_bac",       "Cấp bậc chức danh"),       # filter: cấp bậc
+    ("manager",       "Manager"),                 # filter: quản lý (cần nguồn dữ liệu)
+    ("team",          "Team"),                    # filter: team (cần nguồn dữ liệu)
+    ("trang_thai",    "Trạng thái"),
+    ("diem_cap_tren", "Điểm TB (Cấp trên)"),
+    ("diem_dong_cap", "Điểm TB (Đồng cấp)"),
+    ("diem_cap_duoi", "Điểm TB (Cấp dưới)"),
+    ("tong_360",      "Tổng điểm 360"),
+    ("xep_loai",      "Xếp loại"),                # filter: rating
+    ("du_lieu_tom_tat", "Dữ liệu đầu vào (tham chiếu cho AI)"),
+]
+
+# --- 9b. Cột AI-GENERATED (Claude điền) --------------------------------------
+# (key, nhãn hiển thị, mô tả/luật để đưa vào prompt chung & schema).
+AI_FIELDS = [
+    ("nhan_xet_tong_quan", "Nhận xét tổng quan",
+     "Tóm tắt điều hành 2–3 câu: mức điểm tổng, xếp loại, điểm mạnh nổi bật và 1–2 lưu ý."),
+    ("diem_manh", "Điểm mạnh",
+     "3–5 gạch đầu dòng điểm mạnh nổi bật, có dẫn chiếu nhóm tiêu chí/điểm số."),
+    ("diem_can_cai_thien", "Điểm cần cải thiện",
+     "3–5 gạch đầu dòng điểm cần cải thiện, ưu tiên nhóm tiêu chí điểm thấp nhất."),
+    ("nen_tiep_tuc", "Nên tiếp tục (Continue)",
+     "Các hành vi/thế mạnh nên DUY TRÌ phát huy."),
+    ("nen_bat_dau", "Nên bắt đầu (Start)",
+     "Các hành vi nên BẮT ĐẦU làm để cải thiện."),
+    ("nen_dung", "Nên dừng (Stop)",
+     "Hành vi nên CÂN NHẮC DỪNG; nếu không có, ghi 1 câu trung tính."),
+    ("phan_tich_goc_nhin", "Phân tích chênh lệch góc nhìn",
+     "Phân tích chênh lệch giữa Cấp trên/Đồng cấp/Cấp dưới và ý nghĩa coaching."),
+    ("tiem_nang_phat_trien", "Tiềm năng phát triển",
+     "Đánh giá tiềm năng: Cao / Trung bình / Thấp kèm lý do ngắn dựa trên số liệu."),
+    ("khuyen_nghi_dao_tao", "Khuyến nghị đào tạo",
+     "Khoá học / coaching / chương trình phát triển cụ thể cho điểm yếu."),
+    ("lo_trinh_90_ngay", "Lộ trình 90 ngày",
+     "2–3 hành động ưu tiên, đo lường được, cho kỳ tới."),
+    ("muc_do_san_sang_thang_tien", "Mức độ sẵn sàng thăng tiến",
+     "CHỌN MỘT: 'Sẵn sàng ngay' / 'Sẵn sàng 1–2 năm' / 'Chưa sẵn sàng'."),
+    ("dinh_huong_vai_tro", "Định hướng vai trò",
+     "Vai trò / lộ trình nghề nghiệp phù hợp dựa trên thế mạnh."),
+    ("canh_bao_rui_ro", "Cảnh báo rủi ro",
+     "Rủi ro nghỉ việc / điểm mù nếu có; nếu không, ghi 'Không ghi nhận'."),
+    ("nhom_nhan_tai", "Nhóm nhân tài",
+     "CHỌN MỘT nhãn để lọc: 'Ngôi sao' / 'Tiềm năng cao' / 'Vững vàng' / 'Cần hỗ trợ'."),
+    ("tom_tat_mot_dong", "Tóm tắt một dòng",
+     "Đúng 1 câu tóm tắt (cho trang bìa / danh sách)."),
+    ("ai_note", "Lưu ý AI",
+     "1 câu: nội dung do AI tổng hợp từ số liệu, cần HRBP/OD rà soát trước khi dùng."),
+]
+
+# --- 9c. Cột QUY TRÌNH RÀ SOÁT (con người điền) ------------------------------
+# (key, nhãn, danh sách giá trị hợp lệ nếu là dropdown — None nếu nhập tự do).
+REVIEW_FIELDS = [
+    ("trang_thai_ra_soat", "Trạng thái rà soát",
+     ["Nháp", "Đã rà soát", "Đã duyệt", "Cần sửa"]),
+    ("nguoi_ra_soat", "Người rà soát", None),
+    ("ngay_ra_soat",  "Ngày rà soát", None),
+    ("ghi_chu_ra_soat", "Ghi chú rà soát", None),
+]
+
+# Chỉ những dòng có trạng thái này mới được phép xuất báo cáo (Phase 3).
+REVIEW_STATUS_APPROVED = "Đã duyệt"
+REVIEW_STATUS_DEFAULT = "Nháp"
+
+# Màu nền phân biệt nhóm cột trên Excel (ARGB, không có dấu '#').
+XLSX_FILL_SOURCE = "FFF2F2F2"   # xám nhạt — cột dữ liệu gốc (không sửa)
+XLSX_FILL_AI     = "FFFFF7E6"   # vàng nhạt — cột AI điền
+XLSX_FILL_REVIEW = "FFE8F4EA"   # xanh nhạt — cột con người rà soát
+XLSX_FILL_HEADER = "FF1F4E79"   # xanh đậm — nền hàng header
+
+# ===========================================================================
+# 10. ĐỊNH DẠNG "FILE THỨ 4" THEO MẪU "TỔNG HỢP TIÊU CHÍ" (wide format)
+# ===========================================================================
+# File thứ 4 BÁM ĐÚNG bố cục file "360 data raw(Sheet1).csv" của người dùng:
+#   [Định danh] + [KẾT QUẢ ĐÁNH GIÁ] + 4 KHỐI RATER × 24 hành vi + [Khuyến nghị]
+#   + [các cột AI] + [các cột rà soát].
+# LƯU Ý: nội dung 24 hành vi dưới đây tái dựng từ bản mẫu (bị lỗi mã hoá khi
+# dán). Cần ĐỐI CHIẾU lại với file gốc sạch để khớp 100% câu chữ/thứ tự.
+
+INPUT_COMPETENCY = "Report_360_MASKED_v2(Tong hop tieu chi).csv"   # file "Tổng hợp tiêu chí"
+
+# --- 10a. Cột định danh theo mẫu Sheet1 (key nội bộ -> nhãn hiển thị) ---------
+IDENTITY_FIELDS_V2 = [
+    ("ma_nv",          "Mã nhân viên"),
+    ("ho_ten",         "Họ và tên"),
+    ("chuc_danh",      "Chức danh"),
+    ("ban_chuoi_khoi", "Bộ phận"),           # filter: phòng ban (khớp nhãn dữ liệu thật)
+    ("cap_bac",        "Cấp bậc"),
+    ("trang_thai",     "Trạng thái"),
+]
+LABEL_KET_QUA = "KẾT QUẢ ĐÁNH GIÁ"
+LABEL_KHUYEN_NGHI = "Khuyến nghị"
+LABEL_YKIEN = "Ý kiến đánh giá (từng người, ẩn danh)"   # gộp toàn bộ ý kiến CHUNG của người đánh giá
+LABEL_DIEN_GIAI = "Diễn giải / Ý kiến theo tiêu chí (từng người, ẩn danh)"   # cột thứ 2 khối TỔNG: ý kiến PER-MỤC-TIÊU
+
+# Token "rỗng / không đánh giá" cần BỎ khi gom ý kiến (so khớp ở dạng chữ thường,
+# đã .strip()). Dùng chung cho ý kiến CHUNG và ý kiến theo từng mục tiêu.
+COMMENT_JUNK_TOKENS = {"", "n/a", "nan", "#n/a", "na", "none", "null", "-", "."}
+
+# --- 10b. 4 khối rater (banner hàng 1) -> nguồn điểm trong structured ---------
+# Khớp ĐÚNG bố cục file gốc (đã đo bằng _analyze_sheet1):
+#   - Khối TỔNG: 2 CỘT/hành vi (điểm + diễn giải) -> 48 cột.
+#   - 3 khối rater còn lại: 1 CỘT/hành vi (điểm) -> 24 cột mỗi khối.
+# (key cột, nhãn banner ĐÚNG NHƯ GỐC, key điểm trong behavior dict, số cột/hành vi).
+RATER_BLOCKS = [
+    ("tong",        "TỔNG ĐIỂM THEO TIÊU CHÍ", "others",   2),
+    ("cap_tren",    "CẤP TRÊN",                "cap_tren", 1),
+    ("dong_nghiep", "ĐỒNG NGHIỆP/ ĐỐI TÁC",    "dong_cap", 1),
+    ("cap_duoi",    "CẤP DƯỚI",                "cap_duoi", 1),
+]
+
+# Tên đầy đủ nhóm năng lực ĐÚNG NHƯ FILE GỐC (dùng cho hàng 2 header File thứ 4).
+COMPETENCY_DISPLAY_FULL = {
+    "khat_vong":  "Khát vọng",
+    "ban_linh":   "Bản lĩnh",
+    "quyet_liet": "Quyết liệt",
+    "sang_tao":   "Sáng tạo",
+    "ky_luat":    "Kỷ luật",
+    "tu_duy":     "Năng lực tư duy và học hỏi",
+    "con_nguoi":  "Năng lực Quản lý con người & phát triển đội ngũ",
+    "ke_hoach":   "Năng lực Quản trị kế hoạch",
+    "to_chuc":    "Năng lực Quản trị và phát triển tổ chức",
+    "chuyen_mon": "Năng lực Quản trị chuyên môn (Đánh giá theo chuyên môn CBLĐ đảm trách)",
+}
+
+# --- 10c. 24 hành vi (mục tiêu) theo thứ tự file gốc --------------------------
+# (subcomp_key khớp SUBCOMPETENCIES, mô tả đầy đủ hành vi). 2-2-2-2-2-3-3-2-3-3.
+BEHAVIORS = [
+    ("khat_vong",  "Nghĩ lớn – Mơ lớn – Không bao giờ thỏa mãn với những thành tựu đã đạt được. Truyền cảm hứng cho đội ngũ dám chinh phục và kiên trì theo đuổi những đỉnh cao mới."),
+    ("khat_vong",  "Chủ động đề xuất, dẫn dắt và kiên trì thực thi các sáng kiến, chương trình, với mục tiêu tạo ra giá trị vượt trội cho tổ chức và cộng đồng."),
+    ("ban_linh",   "Thể hiện rõ nét vai trò thủ lĩnh, đứng mũi chịu sào. Dám nhận việc khó, không đùn đẩy, né tránh trách nhiệm."),
+    ("ban_linh",   "Giữ vững lập trường đúng đắn trước áp lực; không khoan nhượng với những hành vi sai trái, chất lượng công việc yếu kém. Thẳng thắn nhận sai, sẵn sàng sửa sai và hành động đến cùng để xử lý triệt để các vấn đề phát sinh."),
+    ("quyet_liet", "Đặt mục tiêu cao, đòi hỏi kết quả vượt trội, tạo áp lực để đẩy nhanh tốc độ."),
+    ("quyet_liet", "Mạnh mẽ, khẩn trương triển khai và bám sát mục tiêu trong công việc - cụ thể đến từng chi tiết. Xử lý đến cùng mọi khó khăn phát sinh để đạt được hiệu quả cao trong công việc."),
+    ("sang_tao",   "Dám nghĩ khác biệt, không quyết định theo kinh nghiệm lối mòn của quá khứ, hoặc định kiến bảo thủ, thường xuyên đưa ra sáng kiến, giải pháp mới nhằm tối ưu chi phí, nâng cao hiệu quả."),
+    ("sang_tao",   "Sẵn sàng thay đổi, vận dụng linh hoạt thông tin và tri thức mới vào thử nghiệm các ý tưởng mới để thúc đẩy đổi mới và bứt phá trong quyết định quản trị, thiết kế sản phẩm và tiêu chuẩn dịch vụ."),
+    ("ky_luat",    "Nghiêm túc tuân thủ pháp luật, quy định và chuẩn mực đạo đức."),
+    ("ky_luat",    "Giữ chữ Tín, lời nói đi đôi với việc làm, công bằng, minh bạch. Không thỏa hiệp, không ngại va chạm, không bị tư tưởng \"thương quân\" lấn át, đấu tranh với những việc làm thiếu trách nhiệm, vô kỷ luật."),
+    ("tu_duy",     "Tư duy Hệ thống, Khoa học, Logic và tập trung vào gốc rễ vấn đề: Nhìn xa trông rộng, phân tích đa chiều, tập trung xử lý gốc rễ vấn đề và ra quyết định dựa trên dữ liệu, bằng chứng đáng tin cậy, tránh cảm tính."),
+    ("tu_duy",     "Tư duy đơn giản hóa: Tiếp cận vấn đề một cách đơn giản, biết chia tách và hóa giải vấn đề lớn, phức tạp thành những phần nhỏ, đơn giản, dễ xử lý. Tìm ra và áp dụng giải pháp đơn giản nhất để giải quyết vấn đề."),
+    ("tu_duy",     "Học hỏi mạnh mẽ, có thể chuyển biến kiến thức, thông tin vào các ứng dụng cụ thể trong các quyết định trong quản trị và tổ chức công việc."),
+    ("con_nguoi",  "Phát hiện, thu hút và giữ chân người tài."),
+    ("con_nguoi",  "Dẫn dắt, đào tạo, kèm cặp, huấn luyện phát triển đội ngũ. Bố trí đúng người đúng việc thông qua ủy quyền và trao quyền."),
+    ("con_nguoi",  "Truyền lửa, chuyển tải thông điệp, tạo động lực lớn cho đội ngũ."),
+    ("ke_hoach",   "Chuyển đổi từ tầm nhìn chiến lược thành các mục tiêu cụ thể và xây dựng kế hoạch hành động để đạt được các mục tiêu đó."),
+    ("ke_hoach",   "Lập kế hoạch khả thi, phân bổ nguồn lực hiệu quả, kiểm soát sát tiến độ, chất lượng và kết quả công việc; chủ động điều chỉnh, xử lý các tình huống phát sinh kịp thời để đảm bảo đạt mục tiêu."),
+    ("to_chuc",    "Quy hoạch và tổ chức hệ thống quản trị, quy định quy chế và cơ chế kiểm soát khoa học, mạch lạc, tinh gọn, hiệu quả."),
+    ("to_chuc",    "Tổ chức bộ máy, tổ chức công việc tổng thể, tinh gọn, hiệu quả, xử lý mâu thuẫn, phối hợp các bộ phận để thực hiện công việc và có thể thu hút, kết nối nguồn lực nội bộ và đối tác bên ngoài."),
+    ("to_chuc",    "Xây dựng văn hóa mạnh, môi trường làm việc đoàn kết, văn minh, kỷ luật, khuyến khích đổi mới, sáng tạo, hướng đến kết quả cuối cùng."),
+    ("chuyen_mon", "Am hiểu sâu kiến thức lĩnh vực phụ trách, biết vận dụng để giải quyết công việc hiệu quả; thường xuyên cập nhật xu thế, phát triển chuyên môn gắn với yêu cầu mục tiêu phát triển của tổ chức."),
+    ("chuyen_mon", "Xây dựng, giám sát quy trình, tiêu chuẩn chuyên môn nhằm tối ưu hiệu suất công việc."),
+    ("chuyen_mon", "Ứng dụng công nghệ mới (đặc biệt là AI) và các sáng kiến và giải pháp mới để nâng cao hiệu quả công việc."),
+]
+
+# Tên file thứ 4 ở định dạng wide (mẫu Sheet1).
+OUT_BATCH_XLSX_WIDE = "360_AI_input_full.xlsx"
