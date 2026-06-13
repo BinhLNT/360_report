@@ -105,9 +105,10 @@ tr:hover td{background:#f7f9fc}
     </div>
   </div>
 
-  <!-- BƯỚC 3: LỌC + XUẤT -->
+  <!-- BƯỚC 3: TẠO BÁO CÁO TỪ FILE THỨ 4 -->
   <div class="card" style="margin-top:16px">
-    <h2><span class="step-num">3</span>Lọc &amp; Xuất báo cáo PDF</h2>
+    <h2><span class="step-num">3</span>Tạo báo cáo từ File thứ 4</h2>
+    <div class="hint" style="margin-bottom:10px">Chọn <b>bao nhiêu</b> và <b>những ai</b> trong File thứ 4 sẽ được tạo báo cáo. (Bộ lọc bên dưới là tuỳ chọn để thu hẹp danh sách.)</div>
     <div class="filters">
       <div><label class="fld">Bộ phận</label><select id="flt-bp"><option value="">— Tất cả —</option></select></div>
       <div><label class="fld">Cấp bậc</label><select id="flt-cb"><option value="">— Tất cả —</option></select></div>
@@ -115,13 +116,22 @@ tr:hover td{background:#f7f9fc}
       <div><label class="fld">Chức danh (tìm)</label><input type="text" id="flt-cd" placeholder="vd: Giám đốc"></div>
     </div>
     <div style="display:flex;gap:18px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <label class="chk"><input type="checkbox" id="from-file4" checked onchange="renderTable()"> Chỉ người có trong <b>File thứ 4</b> <span id="n-file4" class="muted"></span></label>
       <label class="chk"><input type="checkbox" id="flt-approved"> Chỉ người “Đã duyệt”</label>
-      <label class="chk"><input type="checkbox" id="opt-nopdf"> Chỉ HTML (bỏ PDF, nhanh hơn)</label>
+      <label class="chk"><input type="checkbox" id="opt-nopdf"> Chỉ HTML (bỏ PDF)</label>
+      <label class="chk">Số lượng:
+        <input type="number" id="flt-limit" min="1" placeholder="tất cả" style="width:92px;padding:6px;margin:0">
+      </label>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+      <button id="btn-build" onclick="buildFiltered()">📄 Tạo toàn bộ (theo lựa chọn)</button>
+      <button id="btn-build-sel" class="sec" onclick="buildSelected()" disabled>📄 Tạo cho người đã chọn (0)</button>
       <span style="flex:1"></span>
-      <button id="btn-build" onclick="build()">📄 Xuất báo cáo cho danh sách đang lọc</button>
       <a class="dl" href="/download/reports-zip" id="dl-zip" style="display:none">⬇ Tải tất cả PDF (.zip)</a>
     </div>
+    <div class="hint">“<b>Tạo toàn bộ</b>” = tất cả người trong File thứ 4 đang khớp bộ lọc (đặt “Số lượng” để giới hạn N người đầu). “<b>Tạo cho người đã chọn</b>” = chỉ những người bạn tick ở bảng dưới.</div>
     <div class="hint" id="report-count"></div>
+    <div class="hint" id="encrypt-note" style="display:none"></div>
   </div>
 
   <!-- BẢNG NHÂN VIÊN -->
@@ -131,6 +141,7 @@ tr:hover td{background:#f7f9fc}
   </div>
   <div class="scroll">
     <table><thead><tr>
+      <th style="width:34px"><input type="checkbox" id="sel-all" title="Chọn / bỏ tất cả (đang lọc)" onchange="selectAllVisible(this.checked)"></th>
       <th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th><th>Chức danh</th><th>Cấp bậc</th>
       <th>Tổng 360°</th><th>Xếp loại</th><th>AI</th><th>Duyệt</th><th>Báo cáo</th>
     </tr></thead><tbody id="emp-body"></tbody></table>
@@ -140,6 +151,7 @@ tr:hover td{background:#f7f9fc}
 
 <script>
 let EMP = [];
+let SEL = new Set();   // mã NV được chọn tay để xuất riêng
 function norm(s){return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();}
 function $(id){return document.getElementById(id);}
 
@@ -158,10 +170,30 @@ async function loadState(){
     fillSelect($('flt-bp'), s.summary.bo_phan); fillSelect($('flt-cb'), s.summary.cap_bac);
     fillSelect($('flt-rt'), s.summary.ratings_list);
   }
+  // Checkbox "Chỉ người trong File thứ 4": bật mặc định khi đã có File 4.
+  if (s.n_file4) {
+    if ($('from-file4').disabled) { $('from-file4').disabled = false; $('from-file4').checked = true; }
+    $('n-file4').textContent = '(' + s.n_file4 + ' người)';
+  } else {
+    $('from-file4').disabled = true; $('from-file4').checked = false;
+    $('n-file4').textContent = '(chưa có File thứ 4)';
+  }
   $('report-count').textContent = s.n_reports ? ('Đã có '+s.n_reports+' báo cáo PDF trong output/reports/') : '';
   $('dl-zip').style.display = s.n_reports ? 'inline-block' : 'none';
+  const note = $('encrypt-note');
+  if (s.n_reports && s.encrypt) {
+    if (s.password_scheme === 'ma_nv') {
+      note.innerHTML = '🔒 Báo cáo PDF đã <b>mã hoá AES-256</b>. Mật khẩu mở = <b>mã nhân viên</b> của mỗi người (vd EMP0001) — mỗi người tự nhập mã của mình. HR mở được mọi báo cáo bằng <b>mật khẩu chủ</b>.';
+    } else {
+      note.innerHTML = '🔒 Báo cáo PDF đã <b>mã hoá AES-256</b>: mỗi người cần <b>mật khẩu riêng</b> để mở. HR mở được mọi báo cáo bằng mật khẩu chủ.';
+    }
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+  }
   const busy = s.task.running;
   $('btn-step1').disabled = busy; $('btn-build').disabled = busy;
+  $('btn-build-sel').disabled = busy || SEL.size===0;
   if(busy) showProgress(s.task);
 }
 function fillSelect(sel, items){
@@ -194,11 +226,39 @@ function startPolling(){
 async function step1(){
   await fetch('/api/step1',{method:'POST'}); $('btn-step1').disabled=true; startPolling();
 }
-async function build(){
-  const body={ bo_phan:$('flt-bp').value, cap_bac:$('flt-cb').value, rating:$('flt-rt').value,
-    chuc_danh:$('flt-cd').value, only_approved:$('flt-approved').checked, no_pdf:$('opt-nopdf').checked };
+async function doBuild(body){
   await fetch('/api/build',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  $('btn-build').disabled=true; startPolling();
+  $('btn-build').disabled=true; $('btn-build-sel').disabled=true; startPolling();
+}
+async function buildFiltered(){
+  const limit = parseInt($('flt-limit').value,10);
+  const body={ bo_phan:$('flt-bp').value, cap_bac:$('flt-cb').value, rating:$('flt-rt').value,
+    chuc_danh:$('flt-cd').value, only_approved:$('flt-approved').checked, no_pdf:$('opt-nopdf').checked,
+    from_file4:$('from-file4').checked, limit: (limit>0? limit : null) };
+  await doBuild(body);
+}
+async function buildSelected(){
+  if(SEL.size===0){ alert('Chưa chọn ai. Hãy tick vào các dòng ở bảng dưới.'); return; }
+  if(!confirm('Xuất báo cáo cho '+SEL.size+' người đã chọn?')) return;
+  await doBuild({ ma_list:[...SEL], no_pdf:$('opt-nopdf').checked });
+}
+
+// ----- chọn người để xuất riêng -----
+function updateSelBtn(){
+  $('btn-build-sel').textContent = '📄 Xuất người đã chọn ('+SEL.size+')';
+  $('btn-build-sel').disabled = SEL.size===0;
+}
+function toggleSel(cb){
+  if(cb.checked) SEL.add(cb.dataset.ma); else SEL.delete(cb.dataset.ma);
+  updateSelBtn();
+  const vis=[...document.querySelectorAll('.selbox')];
+  $('sel-all').checked = vis.length>0 && vis.every(c=>c.checked);
+}
+function selectAllVisible(on){
+  document.querySelectorAll('.selbox').forEach(cb=>{
+    cb.checked=on; if(on) SEL.add(cb.dataset.ma); else SEL.delete(cb.dataset.ma);
+  });
+  updateSelBtn();
 }
 async function uploadInputs(){
   const map={chi_tiet:'up-ct', tong_hop:'up-th', tieu_chi:'up-tc'};
@@ -234,6 +294,7 @@ async function loadEmployees(){
 function passFilter(e){
   const fv=id=>$(id).value;
   const m=(val,w)=> !w || w.split(',').some(p=>p.trim() && norm(val).includes(norm(p)));
+  if($('from-file4').checked && !e.in_file4) return false;
   if(!m(e.bo_phan, fv('flt-bp'))) return false;
   if(!m(e.cap_bac, fv('flt-cb'))) return false;
   if(!m(e.rating, fv('flt-rt'))) return false;
@@ -248,15 +309,20 @@ function renderTable(){
   $('emp-count').textContent = '('+rows.length+'/'+EMP.length+')';
   const tag=(b,y,n)=>`<span class="tag ${b?'t-yes':'t-no'}">${b?y:n}</span>`;
   $('emp-body').innerHTML = rows.map(e=>`<tr>
+    <td><input type="checkbox" class="selbox" data-ma="${e.ma_nv}" ${SEL.has(e.ma_nv)?'checked':''} onchange="toggleSel(this)"></td>
     <td>${e.ma_nv}</td><td>${e.ho_ten||''}</td><td>${e.bo_phan||''}</td><td>${e.chuc_danh||''}</td>
     <td>${e.cap_bac||''}</td>
     <td>${e.tong_360!=null? e.tong_360.toFixed(2):'<span class="muted">N/A</span>'}</td>
     <td><span class="tag" style="background:${e.rating_color}22;color:${e.rating_color}">${e.rating}</span></td>
     <td>${tag(e.has_ai,'có','—')}</td><td>${tag(e.approved,'duyệt','—')}</td>
     <td>${e.has_pdf
-        ? `<a class="linkbtn" href="/reports/BAOCAO_${e.ma_nv}.pdf" target="_blank">PDF</a>`
+        ? `<a class="linkbtn" href="/reports/${encodeURIComponent(e.pdf_file)}" target="_blank">PDF</a>`
         : `<button class="linkbtn" onclick="window.open('/preview/${e.ma_nv}','_blank')">Xem thử</button>`}</td>
-  </tr>`).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:20px">Không có nhân viên khớp bộ lọc.</td></tr>';
+  </tr>`).join('') || '<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">Không có nhân viên khớp bộ lọc.</td></tr>';
+  // đồng bộ checkbox "chọn tất cả" theo trạng thái danh sách đang hiển thị
+  const visMa = rows.map(e=>e.ma_nv);
+  $('sel-all').checked = visMa.length>0 && visMa.every(m=>SEL.has(m));
+  updateSelBtn();
 }
 ['flt-bp','flt-cb','flt-rt','flt-cd','flt-approved'].forEach(id=>{
   document.addEventListener('DOMContentLoaded',()=>$(id).addEventListener('input', renderTable));

@@ -14,6 +14,7 @@ Tác vụ nặng chạy ở luồng nền; trang tự hỏi tiến độ (progre
 Chạy:  .venv\\Scripts\\python.exe webapp.py   ->  http://127.0.0.1:8000
 """
 
+import csv
 import io
 import os
 import threading
@@ -109,7 +110,7 @@ def _task_step1(update):
     return {"n_emp": len(sl), "errors": len(errors), **out}
 
 
-def _task_build(update, filters, only_approved, limit, make_pdf):
+def _task_build(update, filters, only_approved, limit, make_pdf, only_ma=None, from_file4=False):
     sl = STATE.get("structured_list")
     if sl is None:
         update("Tính điểm (chưa có sẵn)...")
@@ -121,7 +122,8 @@ def _task_build(update, filters, only_approved, limit, make_pdf):
     with _MPL_LOCK:
         res = batch_report.run(
             out_dir=REPORTS_DIR, structured_list=sl, filters=filters,
-            only_approved=only_approved, limit=limit, make_pdf=make_pdf,
+            only_approved=only_approved, limit=limit, make_pdf=make_pdf, only_ma=only_ma,
+            from_file4=from_file4,
             progress_cb=lambda i, t, ma: update(f"Render {i}/{t}: {ma}", i, t))
     return res
 
@@ -143,6 +145,24 @@ def _load_records():
         except Exception:  # noqa: BLE001
             return {}
     return {}
+
+
+def _report_index_map():
+    """Đọc output/reports/_index.csv -> {ma_nv: tên_file_pdf}. Tên file báo cáo
+    nay theo TÊN người nên cần index để biết file của từng mã NV."""
+    idx = os.path.join(REPORTS_DIR, "_index.csv")
+    out = {}
+    if os.path.isfile(idx):
+        try:
+            with open(idx, encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    ma = (row.get("ma_nv") or "").strip()
+                    pdf = (row.get("pdf") or "").strip()
+                    if ma and pdf:
+                        out[ma] = pdf
+        except OSError:
+            pass
+    return out
 
 
 def _summary():
@@ -176,6 +196,7 @@ def api_state():
     n_reports = len([f for f in os.listdir(REPORTS_DIR) if f.endswith(".pdf")]) \
         if os.path.isdir(REPORTS_DIR) else 0
     records = STATE.get("records") or {}
+    n_file4 = len(records)
     return jsonify({
         "files": {
             "chi_tiet": _file_info(config.INPUT_CHI_TIET),
@@ -186,6 +207,9 @@ def api_state():
         "file4_ai_filled": sum(1 for r in records.values() if file4_reader.has_ai_content(r)),
         "file4_approved": sum(1 for r in records.values() if file4_reader.is_approved(r)),
         "n_reports": n_reports,
+        "n_file4": n_file4,
+        "encrypt": config.PDF_ENCRYPT,
+        "password_scheme": config.PDF_PASSWORD_SCHEME,
         "summary": _summary(),
         "task": TASK,
     })
@@ -209,9 +233,16 @@ def api_build():
                for k in ("bo_phan", "chuc_danh", "cap_bac", "rating")}
     only_approved = bool(body.get("only_approved"))
     make_pdf = not bool(body.get("no_pdf"))
+    from_file4 = bool(body.get("from_file4"))
     limit = body.get("limit")
-    limit = int(limit) if str(limit).isdigit() else None
-    ok = _run_async("build", lambda u: _task_build(u, filters, only_approved, limit, make_pdf))
+    limit = int(limit) if str(limit).isdigit() and int(limit) > 0 else None
+    # Chọn tay: danh sách mã NV cụ thể (ưu tiên hơn filter nếu có).
+    ma_list = body.get("ma_list")
+    only_ma = [str(m).strip() for m in ma_list if str(m).strip()] \
+        if isinstance(ma_list, list) and ma_list else None
+    ok = _run_async("build",
+                    lambda u: _task_build(u, filters, only_approved, limit, make_pdf,
+                                          only_ma, from_file4))
     return jsonify({"started": ok})
 
 
@@ -219,10 +250,13 @@ def api_build():
 def api_employees():
     sl = STATE.get("structured_list") or []
     records = STATE.get("records") or {}
+    pdf_map = _report_index_map()
     rows = []
     for s in sl:
         ma = s["employee"]["ma_nv"]
         rec = records.get(ma)
+        pdf_file = pdf_map.get(ma)
+        has_pdf = bool(pdf_file and os.path.isfile(os.path.join(REPORTS_DIR, pdf_file)))
         rows.append({
             "ma_nv": ma,
             "ho_ten": s["employee"]["ho_ten"],
@@ -232,9 +266,11 @@ def api_employees():
             "tong_360": round(s["total_360"], 2) if s["total_360"] is not None else None,
             "rating": s["badge"]["label"],
             "rating_color": s["badge"]["color"],
+            "in_file4": rec is not None,
             "has_ai": bool(rec and file4_reader.has_ai_content(rec)),
             "approved": bool(rec and file4_reader.is_approved(rec)),
-            "has_pdf": os.path.isfile(os.path.join(REPORTS_DIR, f"BAOCAO_{ma}.pdf")),
+            "has_pdf": has_pdf,
+            "pdf_file": pdf_file if has_pdf else None,
         })
     return jsonify(rows)
 

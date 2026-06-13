@@ -7,6 +7,14 @@ output/
 # Dữ liệu đầu vào (CSV) — KHÔNG commit dữ liệu nhân sự (giữ lại README.txt)
 data/*.csv
 
+# Mật khẩu báo cáo (TUYỆT MẬT) — không bao giờ commit, kể cả nếu đổi thư mục output
+password_manifest.csv
+*password_manifest*.csv
+
+# Bí mật cục bộ: khoá HMAC + mật khẩu admin — TUYỆT ĐỐI KHÔNG commit
+
+
+
 # Python
 __pycache__/
 *.pyc

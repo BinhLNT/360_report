@@ -370,3 +370,39 @@ BEHAVIORS = [
 
 # Tên file thứ 4 ở định dạng wide (mẫu Sheet1).
 OUT_BATCH_XLSX_WIDE = "360_AI_input_full.xlsx"
+
+# ===========================================================================
+# 11. MÃ HOÁ / BẢO VỆ BÁO CÁO PDF (chỉ người nhận mở được)
+# ===========================================================================
+# Mỗi báo cáo PDF được mã hoá AES-256: cần MẬT KHẨU MỞ FILE mới xem được.
+#   - Mỗi nhân viên 1 mật khẩu RIÊNG (user password) -> chỉ người đó mở được.
+#   - 1 MẬT KHẨU CHỦ (owner password) cho HR/Admin -> mở được MỌI báo cáo.
+# Hệ thống xuất kèm 1 file "manifest" (mã NV <-> mật khẩu) để HR phát cho từng
+# người qua kênh riêng (email/Zalo...). KHÔNG để manifest lẫn trong thư mục phát.
+PDF_ENCRYPT = True                     # bật/tắt mã hoá báo cáo PDF
+
+# Cách sinh MẬT KHẨU MỞ FILE cho từng nhân viên:
+#   "ma_nv"   : dùng chính MÃ NHÂN VIÊN (mã AD của người được đánh giá) làm mật khẩu
+#               -> mỗi người tự nhập mã của mình để mở, không cần phát mật khẩu.
+#               (Tiện nhưng YẾU hơn: mã NV thường dễ đoán/được biết nội bộ.)
+#   "derived" : suy ra từ KHOÁ BÍ MẬT + mã NV (HMAC-SHA256) — KHÔNG đoán được,
+#               tái tạo lại y hệt nếu giữ nguyên khoá (mạnh nhất, cần phát mật khẩu).
+#   "random"  : mỗi báo cáo 1 mật khẩu ngẫu nhiên mạnh (chỉ tra được qua manifest).
+PDF_PASSWORD_SCHEME = "ma_nv"
+PDF_PASSWORD_LENGTH = 10               # độ dài mật khẩu cho scheme derived/random
+
+# KHOÁ BÍ MẬT cho scheme "derived" — ĐỔI giá trị này và GIỮ KÍN. Nên đặt qua biến
+# môi trường REPORT_SECRET_KEY (ưu tiên hơn giá trị dưới) để không lưu vào git.
+PDF_SECRET_KEY = "CHANGE-ME-360-report-secret-key"
+
+# MẬT KHẨU CHỦ (HR/Admin) mở được mọi báo cáo. Đặt qua REPORT_OWNER_PASSWORD nếu có;
+# nếu để None sẽ tự suy ra từ KHOÁ BÍ MẬT (vẫn cần giữ kín khoá).
+PDF_OWNER_PASSWORD = None
+
+# Tên file manifest (mã NV, họ tên, mật khẩu) — TUYỆT MẬT, đã được .gitignore.
+OUT_PASSWORD_MANIFEST = "password_manifest.csv"
+
+# File BÍ MẬT cục bộ (khoá HMAC + mật khẩu admin), đặt ở thư mục gốc dự án.
+# KHÔNG commit (đã .gitignore). pdf_protect đọc ưu tiên file này hơn các hằng số
+# placeholder ở trên. Tạo bằng: python init_secrets.py
+SECRETS_LOCAL_FILE = "secrets.local.json"

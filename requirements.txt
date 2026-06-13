@@ -5,6 +5,7 @@ matplotlib
 openpyxl          # đọc/ghi Excel (.xlsx) cho chế độ batch (File thứ 4)
 playwright        # xuất PDF hàng loạt bằng headless Chromium (Phase 3)
 flask             # giao diện web (dashboard) — webapp.py
+pikepdf           # mã hoá báo cáo PDF (AES-256) — chỉ người nhận mở được (pdf_protect.py)
 
 # Các module sau là STANDARD LIBRARY của Python (không cần cài):
 #   base64, io, os, datetime, csv, json, argparse, unicodedata, http.server, urllib
