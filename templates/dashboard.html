@@ -43,6 +43,13 @@ tr:hover td{background:#f7f9fc}
 .tag{font-size:10.5px;padding:2px 7px;border-radius:9px}
 .t-yes{background:#E2F0D9;color:#2E7D32} .t-no{background:#f0f0f0;color:#999}
 .linkbtn{color:#1F4E79;cursor:pointer;text-decoration:underline;font-size:12.5px;background:none;border:0;padding:0}
+/* Bấm vào TÊN để chọn người tạo báo cáo */
+.name-cell{cursor:pointer;color:#1F4E79;font-weight:600;user-select:none;white-space:nowrap}
+.name-cell:hover{text-decoration:underline}
+.name-cell::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;
+  border:1.5px solid #b9c6d8;margin-right:8px;vertical-align:-1px;transition:.12s}
+.sel-row td{background:#fff6df !important}
+.sel-row .name-cell::before{background:#1F4E79;border-color:#1F4E79;box-shadow:0 0 0 2px #fff6df}
 .tablebar{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}
 .tablebar h2{margin:0;font-size:16px;color:#1F4E79}
 .hint{font-size:12px;color:#777;margin-top:6px}
@@ -124,12 +131,12 @@ tr:hover td{background:#f7f9fc}
       </label>
     </div>
     <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
-      <button id="btn-build" onclick="buildFiltered()">📄 Tạo toàn bộ (theo lựa chọn)</button>
-      <button id="btn-build-sel" class="sec" onclick="buildSelected()" disabled>📄 Tạo cho người đã chọn (0)</button>
+      <button id="btn-build-sel" onclick="buildSelected()" disabled>📄 Tạo cho người đã chọn (0)</button>
+      <button id="btn-build" class="sec" onclick="buildFiltered()">Tạo toàn bộ danh sách đang lọc</button>
       <span style="flex:1"></span>
       <a class="dl" href="/download/reports-zip" id="dl-zip" style="display:none">⬇ Tải tất cả PDF (.zip)</a>
     </div>
-    <div class="hint">“<b>Tạo toàn bộ</b>” = tất cả người trong File thứ 4 đang khớp bộ lọc (đặt “Số lượng” để giới hạn N người đầu). “<b>Tạo cho người đã chọn</b>” = chỉ những người bạn tick ở bảng dưới.</div>
+    <div class="hint"><b>Cách dùng:</b> ở bảng dưới, <b>bấm vào TÊN</b> những người cần làm báo cáo (dòng sẽ được tô sáng) → bấm “<b>Tạo cho người đã chọn</b>”. <b>Chỉ những người đó</b> mới được tính điểm &amp; tạo PDF — không tạo cho cả danh sách. Nút “Tạo toàn bộ danh sách đang lọc” tạo cho TẤT CẢ người đang hiện trong bảng (đặt “Số lượng” để giới hạn N người đầu).</div>
     <div class="hint" id="report-count"></div>
     <div class="hint" id="encrypt-note" style="display:none"></div>
   </div>
@@ -146,7 +153,7 @@ tr:hover td{background:#f7f9fc}
       <th>Tổng 360°</th><th>Xếp loại</th><th>AI</th><th>Duyệt</th><th>Báo cáo</th>
     </tr></thead><tbody id="emp-body"></tbody></table>
   </div>
-  <div class="hint">Bộ lọc phía trên áp dụng cho cả bảng này lẫn nút “Xuất báo cáo”. Bấm “Xem” để mở báo cáo.</div>
+  <div class="hint">💡 <b>Bấm vào tên</b> một người để chọn họ vào danh sách tạo báo cáo (dòng sẽ được tô sáng); bấm lại để bỏ chọn. Sau đó bấm “<b>Tạo cho người đã chọn</b>” ở Bước 3. Bộ lọc phía trên áp dụng cho cả bảng này lẫn nút tạo báo cáo. Bấm “Xem thử”/“PDF” để mở báo cáo.</div>
 </div>
 
 <script>
@@ -243,20 +250,28 @@ async function buildSelected(){
   await doBuild({ ma_list:[...SEL], no_pdf:$('opt-nopdf').checked });
 }
 
-// ----- chọn người để xuất riêng -----
+// ----- chọn người để xuất riêng (bấm vào TÊN hoặc tick ô) -----
 function updateSelBtn(){
-  $('btn-build-sel').textContent = '📄 Xuất người đã chọn ('+SEL.size+')';
+  $('btn-build-sel').textContent = '📄 Tạo cho người đã chọn ('+SEL.size+')';
   $('btn-build-sel').disabled = SEL.size===0;
 }
-function toggleSel(cb){
-  if(cb.checked) SEL.add(cb.dataset.ma); else SEL.delete(cb.dataset.ma);
+// Đặt trạng thái chọn cho 1 người: đồng bộ ô tick + tô sáng dòng + cập nhật nút.
+function setRowSelected(ma, on){
+  if(on) SEL.add(ma); else SEL.delete(ma);
+  document.querySelectorAll('.selbox[data-ma="'+CSS.escape(ma)+'"]').forEach(cb=>{
+    cb.checked=on; const tr=cb.closest('tr'); if(tr) tr.classList.toggle('sel-row', on);
+  });
   updateSelBtn();
   const vis=[...document.querySelectorAll('.selbox')];
   $('sel-all').checked = vis.length>0 && vis.every(c=>c.checked);
 }
+// Bấm vào TÊN người -> chọn / bỏ chọn tạo báo cáo cho người đó.
+function toggleSelName(ma){ setRowSelected(ma, !SEL.has(ma)); }
+function toggleSel(cb){ setRowSelected(cb.dataset.ma, cb.checked); }
 function selectAllVisible(on){
   document.querySelectorAll('.selbox').forEach(cb=>{
-    cb.checked=on; if(on) SEL.add(cb.dataset.ma); else SEL.delete(cb.dataset.ma);
+    cb.checked=on; const tr=cb.closest('tr'); if(tr) tr.classList.toggle('sel-row', on);
+    if(on) SEL.add(cb.dataset.ma); else SEL.delete(cb.dataset.ma);
   });
   updateSelBtn();
 }
@@ -283,8 +298,12 @@ async function uploadFile4(){
   const f=$('up-file4').files[0]; if(!f){alert('Chọn file .xlsx trước');return;}
   const fd=new FormData(); fd.append('file', f);
   const r=await (await fetch('/api/upload-file4',{method:'POST',body:fd})).json();
-  if(r.ok){alert('Đã tải lên. Số NV có nội dung AI: '+r.ai_filled); loadState(); loadEmployees();}
-  else alert('Lỗi: '+(r.error||'?'));
+  if(r.ok){
+    await loadState(); await loadEmployees();
+    $('from-file4').disabled=false; $('from-file4').checked=true; renderTable();
+    document.querySelector('.tablebar').scrollIntoView({behavior:'smooth'});
+    alert('Đã tải File thứ 4 ('+(r.n_file4||0)+' người).\n\nGiờ hãy BẤM VÀO TÊN người cần làm báo cáo ở bảng dưới (dòng sẽ tô sáng), rồi bấm “Tạo cho người đã chọn”.');
+  } else alert('Lỗi: '+(r.error||'?'));
 }
 
 async function loadEmployees(){
@@ -308,9 +327,14 @@ function renderTable(){
   const rows = EMP.filter(passFilter);
   $('emp-count').textContent = '('+rows.length+'/'+EMP.length+')';
   const tag=(b,y,n)=>`<span class="tag ${b?'t-yes':'t-no'}">${b?y:n}</span>`;
-  $('emp-body').innerHTML = rows.map(e=>`<tr>
+  const emptyMsg = EMP.length===0
+    ? 'Chưa có danh sách. Hãy <b>tải “File thứ 4” lên ở Bước 2</b> — danh sách người trong file sẽ hiện ra để bạn chọn (hoặc chạy Bước 1 để tính điểm toàn bộ).'
+    : 'Không có nhân viên khớp bộ lọc.';
+  $('emp-body').innerHTML = rows.map(e=>`<tr class="${SEL.has(e.ma_nv)?'sel-row':''}">
     <td><input type="checkbox" class="selbox" data-ma="${e.ma_nv}" ${SEL.has(e.ma_nv)?'checked':''} onchange="toggleSel(this)"></td>
-    <td>${e.ma_nv}</td><td>${e.ho_ten||''}</td><td>${e.bo_phan||''}</td><td>${e.chuc_danh||''}</td>
+    <td>${e.ma_nv}</td>
+    <td class="name-cell" onclick="toggleSelName('${e.ma_nv}')" title="Bấm vào tên để chọn / bỏ chọn tạo báo cáo cho người này">${e.ho_ten||''}</td>
+    <td>${e.bo_phan||''}</td><td>${e.chuc_danh||''}</td>
     <td>${e.cap_bac||''}</td>
     <td>${e.tong_360!=null? e.tong_360.toFixed(2):'<span class="muted">N/A</span>'}</td>
     <td><span class="tag" style="background:${e.rating_color}22;color:${e.rating_color}">${e.rating}</span></td>
@@ -318,7 +342,7 @@ function renderTable(){
     <td>${e.has_pdf
         ? `<a class="linkbtn" href="/reports/${encodeURIComponent(e.pdf_file)}" target="_blank">PDF</a>`
         : `<button class="linkbtn" onclick="window.open('/preview/${e.ma_nv}','_blank')">Xem thử</button>`}</td>
-  </tr>`).join('') || '<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">Không có nhân viên khớp bộ lọc.</td></tr>';
+  </tr>`).join('') || `<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">${emptyMsg}</td></tr>`;
   // đồng bộ checkbox "chọn tất cả" theo trạng thái danh sách đang hiển thị
   const visMa = rows.map(e=>e.ma_nv);
   $('sel-all').checked = visMa.length>0 && visMa.every(m=>SEL.has(m));

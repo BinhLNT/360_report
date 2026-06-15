@@ -112,7 +112,15 @@ def _task_step1(update):
 
 def _task_build(update, filters, only_approved, limit, make_pdf, only_ma=None, from_file4=False):
     sl = STATE.get("structured_list")
-    if sl is None:
+    if only_ma:
+        # CHỌN TAY: chỉ làm báo cáo cho NHỮNG NGƯỜI ĐƯỢC CHỌN.
+        if sl is not None:
+            sel = {str(m).strip() for m in only_ma}
+            sl = [s for s in sl if s["employee"]["ma_nv"] in sel]   # lọc từ bản đã tính (rất nhanh)
+        # sl is None -> để batch_report.run() tự tính điểm RIÊNG cho nhóm được chọn
+        # (không tính cả 203 người).
+    elif sl is None:
+        # Tạo theo bộ lọc / toàn bộ -> phải tính tất cả để áp được bộ lọc.
         update("Tính điểm (chưa có sẵn)...")
         df = data_loader.load_chi_tiet(os.path.join(DATA_DIR, config.INPUT_CHI_TIET))
         sl, _ = batch_builder.build_all_structured(
@@ -145,6 +153,21 @@ def _load_records():
         except Exception:  # noqa: BLE001
             return {}
     return {}
+
+
+def _compute_one(ma_nv):
+    """Tính điểm cho ĐÚNG một nhân viên (khi chưa chạy Bước 1 cho cả lô — vd vừa
+    upload File thứ 4). Trả về structured dict hoặc None nếu không có dữ liệu."""
+    path = os.path.join(DATA_DIR, config.INPUT_CHI_TIET)
+    if not os.path.isfile(path):
+        return None
+    df = data_loader.load_chi_tiet(path)
+    key = df["ma_nhan_vien"].astype(str).str.strip()
+    sub = df[key == str(ma_nv).strip()]
+    if sub.empty:
+        return None
+    sl, _ = batch_builder.build_all_structured(sub)
+    return sl[0] if sl else None
 
 
 def _report_index_map():
@@ -252,8 +275,10 @@ def api_employees():
     records = STATE.get("records") or {}
     pdf_map = _report_index_map()
     rows = []
+    seen = set()
     for s in sl:
         ma = s["employee"]["ma_nv"]
+        seen.add(ma)
         rec = records.get(ma)
         pdf_file = pdf_map.get(ma)
         has_pdf = bool(pdf_file and os.path.isfile(os.path.join(REPORTS_DIR, pdf_file)))
@@ -272,6 +297,29 @@ def api_employees():
             "has_pdf": has_pdf,
             "pdf_file": pdf_file if has_pdf else None,
         })
+    # Người CÓ trong File thứ 4 nhưng CHƯA tính điểm (vd vừa upload File 4, chưa
+    # chạy Bước 1) -> vẫn hiện để CHỌN ngay; điểm/xếp loại tính khi tạo báo cáo.
+    for ma, rec in records.items():
+        if ma in seen:
+            continue
+        ident = rec.get("identity", {})
+        pdf_file = pdf_map.get(ma)
+        has_pdf = bool(pdf_file and os.path.isfile(os.path.join(REPORTS_DIR, pdf_file)))
+        rows.append({
+            "ma_nv": ma,
+            "ho_ten": ident.get("ho_ten", ""),
+            "bo_phan": ident.get("ban_chuoi_khoi", ""),
+            "chuc_danh": ident.get("chuc_danh", ""),
+            "cap_bac": ident.get("cap_bac", ""),
+            "tong_360": None,
+            "rating": "—",
+            "rating_color": "#9aa7b4",
+            "in_file4": True,
+            "has_ai": file4_reader.has_ai_content(rec),
+            "approved": file4_reader.is_approved(rec),
+            "has_pdf": has_pdf,
+            "pdf_file": pdf_file if has_pdf else None,
+        })
     return jsonify(rows)
 
 
@@ -281,6 +329,8 @@ def preview(ma_nv):
         return "Đang có tác vụ chạy, thử lại sau khi xong.", 409
     sl = STATE.get("structured_list") or []
     s = next((x for x in sl if x["employee"]["ma_nv"] == ma_nv), None)
+    if s is None:
+        s = _compute_one(ma_nv)   # vừa upload File 4, chưa chạy Bước 1 -> tính riêng người này
     if s is None:
         abort(404)
     rec = (STATE.get("records") or {}).get(ma_nv)
@@ -378,12 +428,16 @@ def upload_file4():
     os.makedirs(OUT_DIR, exist_ok=True)
     f.save(FILE4_PATH)
     STATE["records"] = _load_records()
-    return jsonify({"ok": True, "ai_filled": sum(1 for r in STATE["records"].values()
-                                                  if file4_reader.has_ai_content(r))})
+    return jsonify({"ok": True, "n_file4": len(STATE["records"]),
+                    "ai_filled": sum(1 for r in STATE["records"].values()
+                                     if file4_reader.has_ai_content(r))})
 
 
 if __name__ == "__main__":
     os.makedirs(REPORTS_DIR, exist_ok=True)
-    STATE["records"] = _load_records()
+    # KHÔNG tự nạp File thứ 4 cũ trên đĩa lúc khởi động: danh sách nhân viên chỉ
+    # xuất hiện SAU KHI người dùng tải File thứ 4 lên (hoặc chạy Bước 1) trong
+    # phiên hiện tại. Trước đó bảng để TRỐNG.
+    STATE["records"] = {}
     print("Mở trình duyệt: http://127.0.0.1:8000")
     app.run(host="127.0.0.1", port=8000, threaded=True, debug=False)

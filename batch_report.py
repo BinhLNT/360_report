@@ -149,8 +149,16 @@ def run(data_dir="data", out_dir="output/reports", file4_path=None,
         chi_tiet_path = os.path.join(data_dir, config.INPUT_CHI_TIET)
         if not os.path.isfile(chi_tiet_path):
             raise FileNotFoundError(f"Không tìm thấy file Chi tiết: {chi_tiet_path}")
-        print(f"[1/4] Đọc Chi tiết + tính điểm toàn bộ ...")
         df = data_loader.load_chi_tiet(chi_tiet_path)
+        # Chọn tay (only_ma) mà CHƯA có dữ liệu tính sẵn -> CHỈ tính điểm cho đúng
+        # những người được chọn (không quét/tính cả lô 203 người).
+        if only_ma:
+            only_set = {str(m).strip() for m in only_ma if str(m).strip()}
+            key = df["ma_nhan_vien"].astype(str).str.strip()
+            df = df[key.isin(only_set)]
+            print(f"[1/4] Tính điểm cho {len(only_set)} người được chọn ...")
+        else:
+            print(f"[1/4] Đọc Chi tiết + tính điểm toàn bộ ...")
         structured_list, _errors = batch_builder.build_all_structured(df, report_date=report_date)
         print(f"      -> {len(structured_list)} NV")
     else:
