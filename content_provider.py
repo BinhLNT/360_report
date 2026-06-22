@@ -2,100 +2,14 @@
 """
 content_provider.py
 ==================
-Cung cấp phần NỘI DUNG ĐỊNH TÍNH cho báo cáo theo 2 nguồn:
+Sinh phần NỘI DUNG ĐỊNH TÍNH MẶC ĐỊNH cho báo cáo theo LUẬT từ số liệu
+(rule-based, KHÔNG gọi AI). Dùng làm FALLBACK của report_content khi một nhân
+viên chưa có nội dung AI trong File thứ 4 — để báo cáo vẫn đầy đủ.
 
-  (A) Từ Claude: đọc file JSON `claude_content_<MaNV>.json` mà người dùng dán
-      kết quả của Claude vào (đúng schema ở prompt).
-  (B) Mặc định (fallback): nếu chưa có file JSON, hệ thống TỰ SINH nội dung
-      theo LUẬT từ số liệu (rule-based) — không dùng AI — để báo cáo vẫn đầy đủ.
-
-Nhờ vậy hệ thống chạy được end-to-end ngay cả khi chưa có Claude, đồng thời sẵn
-sàng "ghép nội dung từ Claude" khi có file JSON.
+(Nội dung AI thật do `ai_engine` tự động sinh & ghi vào File thứ 4.)
 """
 
-import json
-import os
-
 import config
-
-
-# ---------------------------------------------------------------------------
-# Lựa chọn nguồn nội dung
-# ---------------------------------------------------------------------------
-def get_content(structured, content_path=None):
-    """
-    Trả về (content_dict, source) trong đó source ∈ {'claude', 'default'}.
-
-    - Nếu content_path tồn tại & đọc được JSON hợp lệ -> dùng (A).
-    - Ngược lại -> sinh nội dung mặc định (B).
-    """
-    if content_path and os.path.isfile(content_path):
-        try:
-            with open(content_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return _normalize_content(data), "claude"
-        except (json.JSONDecodeError, OSError):
-            # File lỗi -> rơi về mặc định, không làm vỡ pipeline.
-            pass
-    return build_default_content(structured), "default"
-
-
-def _strip_code_fence(text):
-    """Bóc khối ```json ... ``` nếu người dùng dán kèm (Claude hay bọc như vậy)."""
-    t = text.strip()
-    if t.startswith("```"):
-        # Bỏ dòng mở đầu (```json hoặc ```), giữ phần còn lại tới dấu đóng.
-        lines = t.splitlines()
-        if lines:
-            lines = lines[1:]                       # bỏ dòng ```... mở đầu
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]                      # bỏ dòng ``` đóng
-        t = "\n".join(lines).strip()
-    return t
-
-
-def save_claude_content(out_dir, ma_nv, raw_text):
-    """
-    Lưu nội dung Claude (chuỗi JSON người dùng DÁN vào sản phẩm) thành file
-    `claude_content_<MaNV>.json` để bước render đọc lên.
-
-    Trả về (path, content_dict đã chuẩn hoá). Ném ValueError nếu JSON không hợp lệ.
-    """
-    raw_text = _strip_code_fence(raw_text or "")
-    if not raw_text:
-        raise ValueError("Nội dung trống. Hãy dán JSON kết quả của Claude vào ô bên dưới.")
-    try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"JSON không hợp lệ (dòng {exc.lineno}, cột {exc.colno}): {exc.msg}. "
-            "Hãy đảm bảo bạn dán ĐÚNG object JSON Claude trả về (không kèm chữ thừa)."
-        ) from exc
-    if not isinstance(data, dict):
-        raise ValueError("JSON phải là một object (bắt đầu bằng '{').")
-
-    content = _normalize_content(data)                # kiểm tra & điền key thiếu
-    os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, config.OUT_CONTENT.format(ma_nv=ma_nv))
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return path, content
-
-
-def _normalize_content(data):
-    """Đảm bảo content từ Claude có đủ key cần thiết (điền rỗng nếu thiếu)."""
-    ssc = data.get("start_stop_continue", {}) or {}
-    return {
-        "executive_summary": data.get("executive_summary", "").strip(),
-        "start_stop_continue": {
-            "continue": list(ssc.get("continue", []) or []),
-            "start": list(ssc.get("start", []) or []),
-            "stop": list(ssc.get("stop", []) or []),
-        },
-        "analysis": data.get("analysis", "").strip(),
-        "development_tips": dict(data.get("development_tips", {}) or {}),
-        "ai_note": data.get("ai_note", "").strip(),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +27,8 @@ def build_default_content(structured):
         "analysis": _default_analysis(structured),
         "development_tips": _default_tips(structured),
         "ai_note": ("Phần định tính dưới đây được hệ thống TỔNG HỢP TỰ ĐỘNG theo luật từ số liệu "
-                    "(không dùng AI). Khuyến nghị OD/HRBP rà soát và bổ sung nhận định trước khi dùng "
-                    "trong coaching. Có thể thay thế bằng nội dung Claude qua file claude_content_*.json."),
+                    "(chưa có nội dung AI). Khuyến nghị OD/HRBP rà soát và bổ sung nhận định trước khi "
+                    "dùng trong coaching."),
     }
 
 

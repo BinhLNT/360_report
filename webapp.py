@@ -5,8 +5,8 @@ webapp.py
 Giao diện web (dashboard) trực quan cho hệ thống 360° — chạy nội bộ trên trình duyệt.
 
 Luồng:
-  Bước 1: bấm "Tính điểm & Sinh File thứ 4"  -> output/360_AI_input_full.xlsx + prompt_chung.txt
-  Bước 2: (điền cột AI + rà soát trong Excel, tải lên lại nếu cần)
+  Bước 1: bấm "Tính điểm & Sinh File thứ 4"  -> output/360_AI_input_full.xlsx
+  Bước 2: bấm "Tự động điền bằng AI" (ai_engine gọi LLM điền cột AI) -> rà soát/duyệt
   Bước 3: chọn bộ lọc -> "Xuất báo cáo PDF" -> xem/tải báo cáo
 
 Tác vụ nặng chạy ở luồng nền; trang tự hỏi tiến độ (progress bar).
@@ -29,11 +29,15 @@ import utils
 import data_loader
 import batch_builder
 import batch_report
-import competency_exporter
 import file4_reader
 import report_content
 import report_renderer
 import chart_generator
+# (competency_exporter được ai_engine dùng nội bộ — webapp không gọi trực tiếp nữa)
+import ai_client          # lớp gọi LLM dùng chung (tính năng AI)
+import ai_engine          # A: tự động điền nội dung AI
+import ai_qa              # B: trợ lý hỏi-đáp HR (agent)
+import ai_review          # C: kiểm chứng grounding
 
 utils.force_utf8_console()
 
@@ -50,7 +54,7 @@ DATA_DIR = os.path.join(ROOT, "data")
 OUT_DIR = os.path.join(ROOT, "output")
 REPORTS_DIR = os.path.join(OUT_DIR, "reports")
 FILE4_PATH = os.path.join(OUT_DIR, config.OUT_BATCH_XLSX_WIDE)
-PROMPT_PATH = os.path.join(OUT_DIR, config.OUT_COMMON_PROMPT)
+AI_CSV_PATH = os.path.join(OUT_DIR, "ai_autofill_result.csv")   # CSV kết quả tự động điền AI
 
 # ---- Trạng thái dùng chung (1 tiến trình, 1 người dùng nội bộ) ----
 STATE = {"structured_list": None, "records": {}}
@@ -168,6 +172,46 @@ def _compute_one(ma_nv):
         return None
     sl, _ = batch_builder.build_all_structured(sub)
     return sl[0] if sl else None
+
+
+def _ensure_structured_list(only_ma=None, update=None):
+    """Trả về structured_list (đã tính). Nếu chưa có thì tính từ file Chi tiết.
+    only_ma -> chỉ tính nhóm đó (nhanh, KHÔNG cache vì là tập con)."""
+    sl = STATE.get("structured_list")
+    if sl is not None:
+        return sl
+    path = os.path.join(DATA_DIR, config.INPUT_CHI_TIET)
+    if not os.path.isfile(path):
+        return None
+    if update:
+        update("Tính điểm (chưa có sẵn)...")
+    df = data_loader.load_chi_tiet(path)
+    if only_ma:
+        sel = {str(m).strip() for m in only_ma}
+        df = df[df["ma_nhan_vien"].astype(str).str.strip().isin(sel)]
+    cb = (lambda d, t: update(f"Tính điểm {d}/{t}...", d, t)) if update else None
+    sl, _ = batch_builder.build_all_structured(df, progress_cb=cb)
+    if not only_ma:
+        STATE["structured_list"] = sl    # bộ đầy đủ -> cache lại
+    return sl
+
+
+def _task_ai_autofill(update, only_ma, only_missing):
+    """Tự động sinh nội dung AI rồi ghi vào cột AI của File thứ 4 (tính năng A)."""
+    if not os.path.isfile(FILE4_PATH):
+        raise FileNotFoundError("Chưa có File thứ 4 — hãy chạy Bước 1 trước khi tự động điền AI.")
+    if not ai_client.is_configured():
+        raise RuntimeError("Chưa cấu hình API key. Hãy điền OPENAI_API_KEY trong file .env "
+                           "rồi khởi động lại server.")
+    sl = _ensure_structured_list(only_ma=only_ma, update=update)
+    if not sl:
+        raise RuntimeError("Không có dữ liệu để tính. Hãy tải file Chi tiết (Bước dữ liệu) trước.")
+    update("Đang sinh nội dung bằng AI...")
+    stats = ai_engine.autofill_file4(
+        FILE4_PATH, sl, only_ma=only_ma, only_missing=only_missing, csv_out=AI_CSV_PATH,
+        progress_cb=lambda d, t: update(f"AI điền {d}/{t}...", d, t))
+    STATE["records"] = _load_records()
+    return stats
 
 
 def _report_index_map():
@@ -353,13 +397,6 @@ def download_file4():
     return send_file(FILE4_PATH, as_attachment=True)
 
 
-@app.route("/download/prompt")
-def download_prompt():
-    if not os.path.isfile(PROMPT_PATH):
-        abort(404)
-    return send_file(PROMPT_PATH, as_attachment=True)
-
-
 @app.route("/download/reports-zip")
 def download_zip():
     if not os.path.isdir(REPORTS_DIR):
@@ -372,6 +409,85 @@ def download_zip():
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name="bao_cao_360.zip",
                      mimetype="application/zip")
+
+
+# ---------------------------------------------------------------------------
+# TÍNH NĂNG AI (A: tự động điền · B: hỏi-đáp · C: kiểm chứng)
+# ---------------------------------------------------------------------------
+@app.route("/api/ai-status")
+def api_ai_status():
+    """Trạng thái cấu hình AI + token đã dùng (cho badge & ô chi phí trên dashboard)."""
+    ai_client.reload_env()                  # nạp lại .env để đổi key không cần restart
+    cfg = ai_client.settings()
+    sl = STATE.get("structured_list")
+    return jsonify({
+        "configured": ai_client.is_configured(),
+        "model": cfg["model"],
+        "endpoint": cfg["base_url"] or "api.openai.com",
+        "n_emp": len(sl) if sl else 0,
+        "usage": ai_client.usage_snapshot(),
+        "has_csv": os.path.isfile(AI_CSV_PATH),
+    })
+
+
+@app.route("/api/ai-autofill", methods=["POST"])
+def api_ai_autofill():
+    """A — Tự động điền 16 trường AI vào File thứ 4 (toàn bộ hoặc nhóm đã chọn)."""
+    body = request.get_json(silent=True) or {}
+    only_missing = bool(body.get("only_missing"))
+    ma_list = body.get("ma_list")
+    only_ma = [str(m).strip() for m in ma_list if str(m).strip()] \
+        if isinstance(ma_list, list) and ma_list else None
+    ok = _run_async("ai-autofill", lambda u: _task_ai_autofill(u, only_ma, only_missing))
+    return jsonify({"started": ok})
+
+
+@app.route("/api/ai-ask", methods=["POST"])
+def api_ai_ask():
+    """B — Trợ lý hỏi-đáp HR (agent + tool use) trên dữ liệu 360°."""
+    body = request.get_json(silent=True) or {}
+    q = (body.get("question") or "").strip()
+    if not q:
+        return jsonify({"ok": False, "error": "Hãy nhập câu hỏi."}), 400
+    if not ai_client.is_configured():
+        return jsonify({"ok": False, "error": "Chưa cấu hình API key (file .env → OPENAI_API_KEY)."}), 400
+    sl = _ensure_structured_list()
+    if not sl:
+        return jsonify({"ok": False, "error": "Chưa có dữ liệu. Hãy tải file Chi tiết & chạy Bước 1."}), 400
+    try:
+        res = ai_qa.answer(q, sl)
+    except Exception as exc:                       # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
+    return jsonify({"ok": True, **res})
+
+
+@app.route("/api/ai-review/<ma_nv>")
+def api_ai_review(ma_nv):
+    """C — Kiểm chứng grounding nội dung AI của 1 nhân viên."""
+    sl = STATE.get("structured_list") or []
+    s = next((x for x in sl if x["employee"]["ma_nv"] == ma_nv), None)
+    if s is None:
+        s = _compute_one(ma_nv)
+    if s is None:
+        return jsonify({"ok": False, "error": "Không có dữ liệu điểm cho nhân viên này."}), 404
+    rec = (STATE.get("records") or {}).get(ma_nv)
+    fields = (rec or {}).get("ai", {})
+    if not any((v or "").strip() for v in fields.values()):
+        return jsonify({"ok": False, "error": "Nhân viên này chưa có nội dung AI để kiểm chứng "
+                        "(hãy Tự động điền AI hoặc nạp File thứ 4 đã có nội dung)."}), 400
+    try:
+        res = ai_review.check(s, fields, use_judge=ai_client.is_configured())
+    except Exception as exc:                       # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
+    return jsonify({"ok": True, "ma_nv": ma_nv, "ho_ten": s["employee"]["ho_ten"], **res})
+
+
+@app.route("/download/ai-csv")
+def download_ai_csv():
+    """Tải CSV kết quả tự động điền AI (ma_nv + 16 cột) để lưu trữ/đối soát."""
+    if not os.path.isfile(AI_CSV_PATH):
+        abort(404)
+    return send_file(AI_CSV_PATH, as_attachment=True, download_name="ket_qua_ai.csv")
 
 
 @app.route("/api/upload-inputs", methods=["POST"])
@@ -396,27 +512,6 @@ def upload_inputs():
         return jsonify({"ok": False, "error": "Chưa chọn file nào."}), 400
     STATE["structured_list"] = None       # dữ liệu mới -> phải tính lại
     return jsonify({"ok": True, "saved": saved})
-
-
-@app.route("/api/upload-ai-csv", methods=["POST"])
-def upload_ai_csv():
-    """Nạp CSV kết quả AI (Claude xuất theo prompt chung) -> ghép vào cột AI của File thứ 4."""
-    f = request.files.get("file")
-    if not f or not f.filename.lower().endswith(".csv"):
-        return jsonify({"ok": False, "error": "Cần file .csv (UTF-8)"}), 400
-    if not os.path.isfile(FILE4_PATH):
-        return jsonify({"ok": False, "error": "Chưa có File thứ 4 — hãy chạy Bước 1 trước."}), 400
-    tmp = os.path.join(OUT_DIR, "_ai_upload.csv")
-    f.save(tmp)
-    try:
-        res = competency_exporter.merge_ai_csv(FILE4_PATH, tmp)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
-    finally:
-        if os.path.isfile(tmp):
-            os.remove(tmp)
-    STATE["records"] = _load_records()
-    return jsonify({"ok": True, **res})
 
 
 @app.route("/api/upload-file4", methods=["POST"])

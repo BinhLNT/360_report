@@ -9,3 +9,5 @@
 - Trong prompt đang yêu cầu claude đưa ra thành định dạng json. yêu cầu chuyển thành csv utf8 hoặc xlsx để người dùng có thể tải xuống và input dễ dàng hơn.
 
 - không có ide thì có cách nào chạy code không.
+
+- thêm 1 tính năng có thể import template vô rồi sau đó sẽ làm báo cáo dựa trên template đấy

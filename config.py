@@ -182,9 +182,7 @@ SSC_LABELS = {
 
 # Tên các file output (sẽ được format với mã nhân viên).
 OUT_TONGHOP = "Tong-hop-raw_{ma_nv}.csv"
-OUT_PROMPT = "prompt_{ma_nv}.txt"
 OUT_STRUCTURED = "structured_{ma_nv}.json"
-OUT_CONTENT = "claude_content_{ma_nv}.json"   # file nội dung do Claude sinh (người dùng dán vào)
 OUT_HTML = "BAOCAO_{ma_nv}.html"
 OUT_PDF = "BAOCAO_{ma_nv}.pdf"
 
@@ -193,42 +191,17 @@ TEMPLATE_DIR = "templates"
 TEMPLATE_FILE = "report_template.html"
 
 # ===========================================================================
-# 9. CHẾ ĐỘ BATCH (>= 500 nhân viên) — "FILE THỨ 4" + PROMPT CHUNG
+# 9. CHẾ ĐỘ BATCH (>= 500 nhân viên) — "FILE THỨ 4"
 # ===========================================================================
-# Quy trình mới: thay vì 1 prompt/người, hệ thống tính điểm cho TOÀN BỘ nhân
-# viên rồi sinh:
-#   (1) 1 PROMPT CHUNG (prompt_chung.txt) dùng cho mọi nhân viên.
-#   (2) "FILE THỨ 4" dạng Excel: mỗi nhân viên 1 dòng = cột dữ liệu gốc + cột
-#       AI (để Claude điền) + cột quy trình rà soát của con người.
+# Hệ thống tính điểm cho TOÀN BỘ nhân viên rồi sinh "FILE THỨ 4" dạng Excel: mỗi
+# nhân viên 1 dòng = cột dữ liệu gốc + cột AI (ai_engine tự điền) + cột rà soát.
 # Sau khi con người rà soát/duyệt, dữ liệu này được ghép vào template để xuất
 # báo cáo PDF hàng loạt (có bộ lọc).
 
-OUT_BATCH_XLSX = "360_AI_input.xlsx"          # "File thứ 4" (skeleton để AI điền)
-OUT_COMMON_PROMPT = "prompt_chung.txt"        # 1 prompt dùng chung cho toàn bộ
 BATCH_SHEET_NAME = "BaoCao_360"               # tên sheet chính trong file thứ 4
 
-# --- 9a. Cột DỮ LIỆU GỐC / CONTEXT (read-only đối với người rà soát) ---------
-# (key nội bộ, nhãn hiển thị trên Excel). Các cột chuc_danh/bo_phan/cap_bac/
-# manager/team/xep_loai đồng thời là TIÊU CHÍ LỌC khi xuất PDF.
-SOURCE_FIELDS = [
-    ("ma_nv",         "Mã nhân viên"),
-    ("ho_ten",        "Họ và tên"),
-    ("chuc_danh",     "Chức danh"),               # filter: chức vụ
-    ("bo_phan",       "Bộ phận"),                 # filter: phòng ban
-    ("cap_bac",       "Cấp bậc chức danh"),       # filter: cấp bậc
-    ("manager",       "Manager"),                 # filter: quản lý (cần nguồn dữ liệu)
-    ("team",          "Team"),                    # filter: team (cần nguồn dữ liệu)
-    ("trang_thai",    "Trạng thái"),
-    ("diem_cap_tren", "Điểm TB (Cấp trên)"),
-    ("diem_dong_cap", "Điểm TB (Đồng cấp)"),
-    ("diem_cap_duoi", "Điểm TB (Cấp dưới)"),
-    ("tong_360",      "Tổng điểm 360"),
-    ("xep_loai",      "Xếp loại"),                # filter: rating
-    ("du_lieu_tom_tat", "Dữ liệu đầu vào (tham chiếu cho AI)"),
-]
-
-# --- 9b. Cột AI-GENERATED (Claude điền) --------------------------------------
-# (key, nhãn hiển thị, mô tả/luật để đưa vào prompt chung & schema).
+# --- 9b. Cột AI-GENERATED (ai_engine tự điền) --------------------------------
+# (key, nhãn hiển thị, mô tả/luật — đưa vào prompt hệ thống của ai_engine & schema).
 AI_FIELDS = [
     ("nhan_xet_tong_quan", "Nhận xét tổng quan",
      "Tóm tắt điều hành 2–3 câu: mức điểm tổng, xếp loại, điểm mạnh nổi bật và 1–2 lưu ý."),

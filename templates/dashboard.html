@@ -90,24 +90,26 @@ tr:hover td{background:#f7f9fc}
       </div>
       <div class="btnrow" id="s1-dl" style="display:none">
         <a class="dl" href="/download/file4">⬇ File thứ 4 (.xlsx)</a>
-        <a class="dl" href="/download/prompt">⬇ Prompt chung (.txt)</a>
       </div>
     </div>
 
     <!-- BƯỚC 2 -->
     <div class="card">
-      <h2><span class="step-num">2</span>Nội dung AI &amp; Rà soát</h2>
+      <h2><span class="step-num">2</span>Điền nội dung AI &amp; Rà soát</h2>
       <div class="frow"><span>Đã điền AI</span><span id="ai-filled" class="pill muted">0</span></div>
       <div class="frow"><span>Đã duyệt</span><span id="ai-approved" class="pill muted">0</span></div>
-      <div class="hint"><b>Cách A:</b> đưa prompt chung cho Claude → nhận file <b>CSV</b> → nạp vào đây (tự ghép theo Mã NV):</div>
+      <div class="hint"><b>Tự động điền bằng AI</b> <span id="ai-badge" class="pill muted">…</span></div>
+      <label class="chk" style="margin:4px 0 6px"><input type="checkbox" id="ai-only-missing" checked> Chỉ điền người <b>chưa có</b> AI (tiết kiệm khi chạy lại)</label>
       <div class="btnrow">
-        <input type="file" id="up-aicsv" accept=".csv" class="finput">
-        <button class="sec" onclick="uploadAiCsv()">⬆ Nạp kết quả AI (CSV)</button>
+        <button id="btn-ai-fill" onclick="aiAutofill(false)" disabled title="Gọi LLM điền 16 trường cho mọi người trong File thứ 4">🤖 Tự điền AI (toàn bộ)</button>
+        <button class="sec" onclick="aiAutofill(true)" title="Chỉ điền AI cho người đã chọn ở bảng dưới">Người đã chọn</button>
+        <a class="dl" href="/download/ai-csv" id="dl-aicsv" style="display:none">⬇ CSV kết quả AI</a>
       </div>
-      <div class="hint"><b>Cách B:</b> tự sửa trong Excel + đặt “Đã duyệt” → tải File thứ 4 lên:</div>
+      <div class="hint" id="ai-usage"></div>
+      <div class="hint" style="border-top:1px solid #eef1f5;margin-top:10px;padding-top:8px"><b>Rà soát/duyệt (tuỳ chọn):</b> tải File thứ 4 đã sửa &amp; đặt “Đã duyệt” trong Excel lên lại:</div>
       <div class="btnrow">
         <input type="file" id="up-file4" accept=".xlsx" class="finput">
-        <button class="sec" onclick="uploadFile4()">⬆ Tải lên File thứ 4</button>
+        <button class="sec" onclick="uploadFile4()">⬆ Tải lên File thứ 4 đã duyệt</button>
       </div>
     </div>
   </div>
@@ -141,6 +143,23 @@ tr:hover td{background:#f7f9fc}
     <div class="hint" id="encrypt-note" style="display:none"></div>
   </div>
 
+  <!-- TRỢ LÝ HỎI-ĐÁP AI (Agent + tool use) -->
+  <div class="card" id="ai-qa-card" style="margin-top:16px">
+    <h2>🤖 Trợ lý hỏi-đáp AI <span id="ai-qa-badge" class="pill muted" style="font-size:11px">…</span></h2>
+    <div class="hint" style="margin-bottom:8px">Hỏi bằng tiếng Việt trên dữ liệu 360° đã tính. AI tự gọi <b>công cụ truy vấn</b> dữ liệu thật (không bịa số). Cần đã chạy <b>Bước 1</b>.</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="ai-q" placeholder="Nhập câu hỏi rồi Enter…" onkeydown="if(event.key==='Enter')aiAsk()" style="flex:1">
+      <button id="btn-ai-ask" onclick="aiAsk()" disabled>Hỏi</button>
+    </div>
+    <div class="btnrow" id="ai-q-examples">
+      <button class="sec" onclick="askEx(this)">Ai có tổng điểm cao nhất?</button>
+      <button class="sec" onclick="askEx(this)">Điểm trung bình theo bộ phận?</button>
+      <button class="sec" onclick="askEx(this)">Liệt kê 5 người nhóm 'Cần hỗ trợ'</button>
+    </div>
+    <div id="ai-answer" style="display:none;margin-top:12px;background:#f6f8fb;border-radius:8px;padding:12px 14px;font-size:13.5px;white-space:pre-wrap"></div>
+    <div id="ai-trace" class="hint" style="margin-top:6px"></div>
+  </div>
+
   <!-- BẢNG NHÂN VIÊN -->
   <div class="tablebar">
     <h2>Danh sách nhân viên <span id="emp-count" class="muted" style="font-size:13px"></span></h2>
@@ -153,7 +172,18 @@ tr:hover td{background:#f7f9fc}
       <th>Tổng 360°</th><th>Xếp loại</th><th>AI</th><th>Duyệt</th><th>Báo cáo</th>
     </tr></thead><tbody id="emp-body"></tbody></table>
   </div>
-  <div class="hint">💡 <b>Bấm vào tên</b> một người để chọn họ vào danh sách tạo báo cáo (dòng sẽ được tô sáng); bấm lại để bỏ chọn. Sau đó bấm “<b>Tạo cho người đã chọn</b>” ở Bước 3. Bộ lọc phía trên áp dụng cho cả bảng này lẫn nút tạo báo cáo. Bấm “Xem thử”/“PDF” để mở báo cáo.</div>
+  <div class="hint">💡 <b>Bấm vào tên</b> một người để chọn họ vào danh sách tạo báo cáo (dòng sẽ được tô sáng); bấm lại để bỏ chọn. Sau đó bấm “<b>Tạo cho người đã chọn</b>” ở Bước 3. Bộ lọc phía trên áp dụng cho cả bảng này lẫn nút tạo báo cáo. Bấm “Xem thử”/“PDF” để mở báo cáo; “🔎 Kiểm chứng” để soi nội dung AI có bám số liệu không.</div>
+</div>
+
+<!-- Modal kết quả (kiểm chứng AI) -->
+<div id="modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50" onclick="if(event.target===this)closeModal()">
+  <div style="max-width:700px;margin:6vh auto;background:#fff;border-radius:12px;padding:20px 24px;max-height:86vh;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2 id="modal-title" style="margin:0;color:#1F4E79;font-size:16px">Kết quả</h2>
+      <button class="sec" onclick="closeModal()">Đóng</button>
+    </div>
+    <div id="modal-body" style="margin-top:12px;font-size:13.5px;line-height:1.5"></div>
+  </div>
 </div>
 
 <script>
@@ -225,7 +255,7 @@ function startPolling(){
     if(t.done && !t.running){
       clearInterval(iv); polling=false;
       setTimeout(()=>{ $('progress').style.display = t.error?'block':'none'; }, t.error?6000:1500);
-      await loadState(); await loadEmployees();
+      await loadState(); await loadEmployees(); refreshAiStatus();
     }
   }, 1000);
 }
@@ -285,15 +315,6 @@ async function uploadInputs(){
     EMP=[]; renderTable(); $('s1-stat').style.display='none'; loadState(); }
   else alert('Lỗi: '+(r.error||'?'));
 }
-async function uploadAiCsv(){
-  const f=$('up-aicsv').files[0]; if(!f){alert('Chọn file .csv kết quả AI');return;}
-  const fd=new FormData(); fd.append('file', f);
-  const r=await (await fetch('/api/upload-ai-csv',{method:'POST',body:fd})).json();
-  if(r.ok){ alert('Đã nạp kết quả AI: cập nhật '+r.updated+' nhân viên (CSV có '+r.rows_in_csv+' dòng).'
-      +(r.unknown_columns&&r.unknown_columns.length? '\nCột lạ bị bỏ qua: '+r.unknown_columns.join(', '):''));
-    loadState(); loadEmployees(); }
-  else alert('Lỗi: '+(r.error||'?'));
-}
 async function uploadFile4(){
   const f=$('up-file4').files[0]; if(!f){alert('Chọn file .xlsx trước');return;}
   const fd=new FormData(); fd.append('file', f);
@@ -341,7 +362,8 @@ function renderTable(){
     <td>${tag(e.has_ai,'có','—')}</td><td>${tag(e.approved,'duyệt','—')}</td>
     <td>${e.has_pdf
         ? `<a class="linkbtn" href="/reports/${encodeURIComponent(e.pdf_file)}" target="_blank">PDF</a>`
-        : `<button class="linkbtn" onclick="window.open('/preview/${e.ma_nv}','_blank')">Xem thử</button>`}</td>
+        : `<button class="linkbtn" onclick="window.open('/preview/${e.ma_nv}','_blank')">Xem thử</button>`}${e.has_ai
+        ? ` · <button class="linkbtn" onclick="aiReview('${e.ma_nv}')" title="Kiểm chứng nội dung AI có bám số liệu không">🔎 Kiểm chứng</button>` : ''}</td>
   </tr>`).join('') || `<tr><td colspan="11" class="muted" style="text-align:center;padding:20px">${emptyMsg}</td></tr>`;
   // đồng bộ checkbox "chọn tất cả" theo trạng thái danh sách đang hiển thị
   const visMa = rows.map(e=>e.ma_nv);
@@ -352,7 +374,80 @@ function renderTable(){
   document.addEventListener('DOMContentLoaded',()=>$(id).addEventListener('input', renderTable));
 });
 
-loadState(); loadEmployees();
-setInterval(loadState, 5000);
+// ===== Tính năng AI =====
+function showModal(title, html){ $('modal-title').innerHTML=title; $('modal-body').innerHTML=html; $('modal').style.display='block'; }
+function closeModal(){ $('modal').style.display='none'; }
+function askEx(btn){ $('ai-q').value=btn.textContent; aiAsk(); }
+
+async function refreshAiStatus(){
+  try{
+    const s = await (await fetch('/api/ai-status')).json();
+    const b=$('ai-badge'), qb=$('ai-qa-badge');
+    if(s.configured){
+      b.className='pill ok'; b.textContent='Sẵn sàng · '+s.model;
+      qb.className='pill ok'; qb.textContent=s.model;
+      $('btn-ai-ask').disabled=false; $('ai-q').disabled=false;
+    }else{
+      b.className='pill miss'; b.textContent='Chưa có API key trong .env';
+      qb.className='pill miss'; qb.textContent='Chưa cấu hình .env';
+      $('btn-ai-ask').disabled=true;
+    }
+    $('btn-ai-fill').disabled = !s.configured;
+    $('dl-aicsv').style.display = s.has_csv? 'inline-block':'none';
+    const u=s.usage||{};
+    $('ai-usage').textContent = u.calls? ('Đã gọi LLM '+u.calls+' lượt · '+(u.total_tokens||0).toLocaleString('vi')+' token'):'';
+  }catch(e){}
+}
+
+async function aiAutofill(selected){
+  const body={only_missing:$('ai-only-missing').checked};
+  if(selected){ if(SEL.size===0){alert('Chưa chọn ai. Hãy bấm vào TÊN người ở bảng dưới.');return;} body.ma_list=[...SEL]; }
+  const who = selected? (SEL.size+' người đã chọn') : 'TẤT CẢ người trong File thứ 4';
+  const miss = body.only_missing? ' (bỏ qua người đã có AI)' : '';
+  if(!confirm('Gọi AI sinh nội dung cho '+who+miss+'?\n(Sẽ tốn token API và có thể mất ít phút.)')) return;
+  await fetch('/api/ai-autofill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  startPolling();
+}
+
+async function aiAsk(){
+  const q=$('ai-q').value.trim(); if(!q) return;
+  $('btn-ai-ask').disabled=true;
+  const ans=$('ai-answer'), tr=$('ai-trace');
+  ans.style.display='block'; ans.textContent='Đang suy nghĩ…'; tr.textContent='';
+  try{
+    const r=await (await fetch('/api/ai-ask',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({question:q})})).json();
+    if(r.ok){
+      ans.textContent = r.answer || '(không có nội dung)';
+      tr.innerHTML = (r.trace&&r.trace.length)
+        ? '🔧 Công cụ đã dùng: '+r.trace.map(t=>'<b>'+t.tool+'</b>('+(t.summary||'')+')').join(' → ')
+        : '';
+    } else { ans.textContent='Lỗi: '+(r.error||'?'); }
+  }catch(e){ ans.textContent='Lỗi mạng.'; }
+  $('btn-ai-ask').disabled=false;
+}
+
+async function aiReview(ma){
+  showModal('Kiểm chứng nội dung AI', 'Đang kiểm chứng…');
+  try{
+    const r=await (await fetch('/api/ai-review/'+encodeURIComponent(ma))).json();
+    if(!r.ok){ $('modal-body').innerHTML='<b style="color:#C00000">'+(r.error||'Lỗi')+'</b>'; return; }
+    const rule=r.rule, judge=r.judge, v=r.verdict;
+    let h='<div style="font-size:15px;margin-bottom:10px"><b>'+r.ho_ten+'</b><br>'+v.summary+'</div>';
+    h+='<b>① Kiểm tra theo luật ('+rule.passed+'/'+rule.total+'):</b><ul style="margin:6px 0 12px">';
+    rule.checks.forEach(c=>{ h+='<li>'+(c.passed?'✅':'❌')+' '+c.name+' <span class="muted">— '+c.detail+'</span></li>'; });
+    h+='</ul>';
+    if(judge && !judge.error){
+      h+='<b>② LLM giám định độc lập:</b> grounded = '+(judge.grounded?'<b style="color:#2E7D32">CÓ</b>':'<b style="color:#C00000">KHÔNG</b>')
+         +(judge.score!=null?(' · điểm '+judge.score):'')+'<br><i>'+(judge.rationale||'')+'</i>';
+      if(judge.issues&&judge.issues.length){ h+='<ul style="margin:6px 0">'+judge.issues.map(i=>'<li>⚠️ '+i+'</li>').join('')+'</ul>'; }
+    } else if(judge && judge.error){ h+='<div class="muted">② LLM giám định lỗi: '+judge.error+'</div>'; }
+    else { h+='<div class="muted">② Chưa cấu hình API key → chỉ kiểm tra theo luật.</div>'; }
+    $('modal-body').innerHTML=h;
+  }catch(e){ $('modal-body').innerHTML='Lỗi mạng.'; }
+}
+
+loadState(); loadEmployees(); refreshAiStatus();
+setInterval(()=>{ loadState(); refreshAiStatus(); }, 5000);
 </script>
 </body></html>

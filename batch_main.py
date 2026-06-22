@@ -7,14 +7,14 @@ batch_main.py
 LUỒNG:
   1. Đọc file Chi tiết (toàn bộ nhân viên).
   2. Tính điểm 360° cho TẤT CẢ nhân viên.
-  3. Sinh "FILE THỨ 4" (Excel: data gốc + cột AI trống + cột rà soát) và
-     PROMPT CHUNG (prompt_chung.txt).
+  3. Sinh "FILE THỨ 4" (Excel: data gốc + cột AI trống + cột rà soát).
 
 CÁCH DÙNG:
   python batch_main.py
   python batch_main.py --data-dir data --out-dir output --report-date 09/06/2026
 
-KHÔNG gọi AI API. Đầu ra dùng cho bước AI điền + con người rà soát.
+KHÔNG gọi AI API ở đây. Cột AI được điền tự động bởi ai_engine (xem webapp.py),
+sau đó con người rà soát/duyệt trước khi xuất báo cáo.
 """
 
 import argparse
@@ -71,12 +71,11 @@ def run(data_dir="data", out_dir="output", report_date=None):
         print(f"        (vd: {', '.join(blank[:10])}{' ...' if len(blank) > 10 else ''}) "
               f"Kiểm tra cột 'Tên mục tiêu' trong file Chi tiết có khớp 24 hành vi chuẩn không.")
 
-    print("[3/3] Sinh File thứ 4 (Excel) + prompt chung ...")
+    print("[3/3] Sinh File thứ 4 (Excel) ...")
     out = batch_builder.write_outputs(results, out_dir)
 
     print("\n===== HOÀN TẤT =====")
     print(f"  File thứ 4 (Excel): {out['batch_xlsx']}")
-    print(f"  Prompt chung      : {out['common_prompt']}")
     print(f"  Số dòng nhân viên : {len(results)}")
     return out
 

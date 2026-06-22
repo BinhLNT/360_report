@@ -12,7 +12,14 @@ password_manifest.csv
 *password_manifest*.csv
 
 # Bí mật cục bộ: khoá HMAC + mật khẩu admin — TUYỆT ĐỐI KHÔNG commit
+secrets.local.json
+*.local.json
+secret*.json
 
+# Khoá API LLM (.env) — TUYỆT ĐỐI KHÔNG commit (giữ lại .env.example làm mẫu)
+.env
+.env.*
+!.env.example
 
 
 # Python
