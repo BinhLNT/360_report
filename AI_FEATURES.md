@@ -39,7 +39,8 @@ LLM **không bao giờ** thấy dữ liệu thô; nó chỉ nhận ngữ cảnh 
 
 | Module | Vai trò |
 |---|---|
-| `ai_client.py` | Lớp gọi LLM dùng chung: cấu hình `.env`, `chat()/chat_json()`, parse JSON an toàn, **tự bỏ** `response_format`/`temperature` nếu provider từ chối, **đếm token** (observability). |
+| `ai_client.py` | Lớp gọi LLM dùng chung: cấu hình `.env`, `chat()/chat_json()`, parse JSON an toàn, **tự bỏ** `response_format`/`temperature`/`reasoning` nếu provider từ chối, **đếm token** (observability). |
+| `structured_from_file4.py` | **Đọc ngược File thứ 4** (ma trận điểm 24 hành vi × 4 khối + ý kiến) → dựng lại structured grounding. Nhờ đó File thứ 4 là **đầu vào ĐỘC LẬP** (không cần file Chi tiết gốc). Tái dùng `score_calculator.top_bottom_behaviors`/`biggest_gaps` + `structured_data._make_badge` để nhất quán. |
 | `ai_engine.py` | **(A)** Sinh 16 trường nhận xét cho mỗi NV → CSV (`ma_nv` + 16 cột) → ghép vào File thứ 4 bằng `merge_ai_csv` có sẵn. Có đường **offline rule-based**. |
 | `ai_qa.py` | **(B)** Agent hỏi-đáp HR: 4 công cụ (`filter_employees`, `get_employee`, `aggregate`, `rank_employees`) + vòng lặp tool-calling. |
 | `ai_review.py` | **(C)** Kiểm chứng: kiểm tra theo luật (enum, nhất quán nhãn↔điểm, **phát hiện số bịa**) + **LLM-as-judge** chấm grounding 0–1. |
@@ -48,9 +49,15 @@ LLM **không bao giờ** thấy dữ liệu thô; nó chỉ nhận ngữ cảnh 
 
 ## (A) Tự động điền nội dung AI — `ai_engine.py`
 
-Với mỗi nhân viên: dựng ngữ cảnh số liệu → yêu cầu LLM trả về **JSON 16 trường** →
-chuẩn hoá + **ràng buộc enum** (`nhom_nhan_tai`, `muc_do_san_sang_thang_tien`) →
-gộp thành CSV đúng định dạng cũ → `competency_exporter.merge_ai_csv()` ghi vào File 4.
+**Vòng lặp File thứ 4 độc lập:** Bước 1 tạo File 4 (có cột điểm + 16 cột AI trống) →
+Bước 2 upload File 4 → `structured_from_file4` đọc điểm + ý kiến **NGAY TRONG File 4**
+để dựng ngữ cảnh grounding (không cần file Chi tiết gốc) → LLM trả **JSON 16 trường**
+→ chuẩn hoá + **ràng buộc enum** → ghi thẳng vào 16 cột AI của File 4 (`merge_ai_csv`)
+→ tải về **đúng File 4 đó**, giờ các cột AI đã có nội dung.
+
+> Đã kiểm chứng: structured đọc-ngược-từ-File-4 cho tổng điểm/xếp loại/top-bottom
+> **khớp tuyệt đối** bản tính từ Chi tiết (điểm theo nhóm xấp xỉ ≤0.11 vì File 4 chỉ
+> lưu điểm hành vi, không lưu điểm rater có trọng số 30/70 — không ảnh hưởng nhận xét).
 
 **Điểm nói phỏng vấn:**
 - *Structured output*: ép JSON schema 16 khoá, parse + sửa lỗi, snap enum về giá trị hợp lệ.
@@ -62,7 +69,7 @@ gộp thành CSV đúng định dạng cũ → `competency_exporter.merge_ai_csv
 - *Lưới an toàn (hybrid)*: trường nào LLM để trống được đắp bằng nội dung rule-based từ số liệu → báo cáo **luôn đủ 16 trường**.
 - *Resume/idempotent*: tuỳ chọn **`only_missing`** bỏ qua người đã có nội dung Ai (chạy lại không trả tiền lại).
 
-API: `POST /api/ai-autofill` `{ma_list?, offline?, only_missing?}` (chạy nền, có progress bar).
+API: `POST /api/ai-autofill` `{ma_list?, only_missing?}` (chạy nền, có progress bar; nguồn grounding = File thứ 4 trên hệ thống).
 
 ## (B) Trợ lý hỏi-đáp HR (Agent + tool use) — `ai_qa.py`
 

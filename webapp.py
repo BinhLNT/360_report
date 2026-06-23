@@ -38,6 +38,7 @@ import ai_client          # lớp gọi LLM dùng chung (tính năng AI)
 import ai_engine          # A: tự động điền nội dung AI
 import ai_qa              # B: trợ lý hỏi-đáp HR (agent)
 import ai_review          # C: kiểm chứng grounding
+import structured_from_file4   # dựng dữ liệu grounding TỪ chính File thứ 4 (độc lập)
 
 utils.force_utf8_console()
 
@@ -181,31 +182,44 @@ def _ensure_structured_list(only_ma=None, update=None):
     if sl is not None:
         return sl
     path = os.path.join(DATA_DIR, config.INPUT_CHI_TIET)
-    if not os.path.isfile(path):
-        return None
-    if update:
-        update("Tính điểm (chưa có sẵn)...")
-    df = data_loader.load_chi_tiet(path)
-    if only_ma:
-        sel = {str(m).strip() for m in only_ma}
-        df = df[df["ma_nhan_vien"].astype(str).str.strip().isin(sel)]
-    cb = (lambda d, t: update(f"Tính điểm {d}/{t}...", d, t)) if update else None
-    sl, _ = batch_builder.build_all_structured(df, progress_cb=cb)
-    if not only_ma:
-        STATE["structured_list"] = sl    # bộ đầy đủ -> cache lại
-    return sl
+    if os.path.isfile(path):
+        if update:
+            update("Tính điểm (chưa có sẵn)...")
+        df = data_loader.load_chi_tiet(path)
+        if only_ma:
+            sel = {str(m).strip() for m in only_ma}
+            df = df[df["ma_nhan_vien"].astype(str).str.strip().isin(sel)]
+        cb = (lambda d, t: update(f"Tính điểm {d}/{t}...", d, t)) if update else None
+        sl, _ = batch_builder.build_all_structured(df, progress_cb=cb)
+        if not only_ma:
+            STATE["structured_list"] = sl    # bộ đầy đủ -> cache lại
+        return sl
+    # Không có file Chi tiết -> dựng grounding TỪ chính File thứ 4 (độc lập).
+    if os.path.isfile(FILE4_PATH):
+        if update:
+            update("Đọc dữ liệu từ File thứ 4...")
+        sl = structured_from_file4.build_all(FILE4_PATH)
+        STATE["structured_list"] = sl
+        return sl
+    return None
 
 
 def _task_ai_autofill(update, only_ma, only_missing):
-    """Tự động sinh nội dung AI rồi ghi vào cột AI của File thứ 4 (tính năng A)."""
+    """Tự động sinh nội dung AI rồi ghi vào cột AI của File thứ 4 (tính năng A).
+
+    Nguồn dữ liệu grounding = CHÍNH File thứ 4 (điểm 24 hành vi + ý kiến đã có sẵn)
+    -> File thứ 4 là đầu vào ĐỘC LẬP, KHÔNG cần file Chi tiết gốc.
+    """
     if not os.path.isfile(FILE4_PATH):
-        raise FileNotFoundError("Chưa có File thứ 4 — hãy chạy Bước 1 trước khi tự động điền AI.")
+        raise FileNotFoundError("Chưa có File thứ 4 — hãy chạy Bước 1 hoặc tải File thứ 4 lên trước.")
     if not ai_client.is_configured():
         raise RuntimeError("Chưa cấu hình API key. Hãy điền OPENAI_API_KEY trong file .env "
                            "rồi khởi động lại server.")
-    sl = _ensure_structured_list(only_ma=only_ma, update=update)
+    update("Đọc điểm & ý kiến từ File thứ 4...")
+    sl = structured_from_file4.build_all(FILE4_PATH)
     if not sl:
-        raise RuntimeError("Không có dữ liệu để tính. Hãy tải file Chi tiết (Bước dữ liệu) trước.")
+        raise RuntimeError("File thứ 4 chưa có dữ liệu — hãy chạy Bước 1 để sinh File thứ 4 "
+                           "(có cột điểm) trước khi để AI điền.")
     update("Đang sinh nội dung bằng AI...")
     stats = ai_engine.autofill_file4(
         FILE4_PATH, sl, only_ma=only_ma, only_missing=only_missing, csv_out=AI_CSV_PATH,

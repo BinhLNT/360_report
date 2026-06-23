@@ -63,7 +63,9 @@ def build_employee_context(structured, max_comments=30):
     for rel in structured["relationship_order"]:
         g = ga.get(rel)
         if g:
-            grp.append(f"{g['label']} {_fmt(g['score'])} ({g['n_completed']} người)")
+            n = g.get("n_completed")
+            cnt = f" ({n} người)" if n is not None else ""
+            grp.append(f"{g['label']} {_fmt(g['score'])}{cnt}")
     if grp:
         lines.append("- Điểm theo nhóm quan hệ: " + "; ".join(grp))
 

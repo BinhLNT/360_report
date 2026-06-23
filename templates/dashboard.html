@@ -95,22 +95,31 @@ tr:hover td{background:#f7f9fc}
 
     <!-- BƯỚC 2 -->
     <div class="card">
-      <h2><span class="step-num">2</span>Điền nội dung AI &amp; Rà soát</h2>
+      <h2><span class="step-num">2</span>AI điền nội dung vào File thứ 4</h2>
       <div class="frow"><span>Đã điền AI</span><span id="ai-filled" class="pill muted">0</span></div>
       <div class="frow"><span>Đã duyệt</span><span id="ai-approved" class="pill muted">0</span></div>
-      <div class="hint"><b>Tự động điền bằng AI</b> <span id="ai-badge" class="pill muted">…</span></div>
+      <div class="hint">AI đọc điểm + ý kiến <b>ngay trong File thứ 4</b> rồi điền 16 cột nhận xét — File thứ 4 là đầu vào <b>độc lập</b>. Trạng thái AI: <span id="ai-badge" class="pill muted">…</span></div>
+
+      <div class="hint" style="margin-top:8px"><b>① Tải File thứ 4 lên</b> (nếu mang từ nơi khác; bỏ qua nếu vừa chạy Bước 1):</div>
+      <div class="btnrow">
+        <input type="file" id="up-file4" accept=".xlsx" class="finput">
+        <button class="sec" onclick="uploadFile4()">⬆ Tải File thứ 4 lên</button>
+      </div>
+
+      <div class="hint" style="margin-top:4px"><b>② Để AI điền</b> (đọc dữ liệu từ chính File thứ 4):</div>
       <label class="chk" style="margin:4px 0 6px"><input type="checkbox" id="ai-only-missing" checked> Chỉ điền người <b>chưa có</b> AI (tiết kiệm khi chạy lại)</label>
       <div class="btnrow">
         <button id="btn-ai-fill" onclick="aiAutofill(false)" disabled title="Gọi LLM điền 16 trường cho mọi người trong File thứ 4">🤖 Tự điền AI (toàn bộ)</button>
         <button class="sec" onclick="aiAutofill(true)" title="Chỉ điền AI cho người đã chọn ở bảng dưới">Người đã chọn</button>
-        <a class="dl" href="/download/ai-csv" id="dl-aicsv" style="display:none">⬇ CSV kết quả AI</a>
       </div>
       <div class="hint" id="ai-usage"></div>
-      <div class="hint" style="border-top:1px solid #eef1f5;margin-top:10px;padding-top:8px"><b>Rà soát/duyệt (tuỳ chọn):</b> tải File thứ 4 đã sửa &amp; đặt “Đã duyệt” trong Excel lên lại:</div>
+
+      <div class="hint" style="margin-top:4px"><b>③ Tải về File thứ 4</b> — cùng format Bước 1, các cột AI đã có nội dung:</div>
       <div class="btnrow">
-        <input type="file" id="up-file4" accept=".xlsx" class="finput">
-        <button class="sec" onclick="uploadFile4()">⬆ Tải lên File thứ 4 đã duyệt</button>
+        <a class="dl" href="/download/file4" id="dl-file4" style="display:none">⬇ File thứ 4 (đã điền AI)</a>
+        <a class="dl" href="/download/ai-csv" id="dl-aicsv" style="display:none">⬇ Chỉ cột AI (.csv)</a>
       </div>
+      <div class="hint" style="border-top:1px solid #eef1f5;margin-top:10px;padding-top:8px">💡 <b>Rà soát/duyệt:</b> tải File thứ 4 về, mở Excel sửa (nếu cần) + đặt “Đã duyệt”, rồi tải lại lên ở ① để xuất báo cáo.</div>
     </div>
   </div>
 
@@ -217,6 +226,7 @@ async function loadState(){
   }
   $('report-count').textContent = s.n_reports ? ('Đã có '+s.n_reports+' báo cáo PDF trong output/reports/') : '';
   $('dl-zip').style.display = s.n_reports ? 'inline-block' : 'none';
+  $('dl-file4').style.display = s.file4_exists ? 'inline-block' : 'none';
   const note = $('encrypt-note');
   if (s.n_reports && s.encrypt) {
     if (s.password_scheme === 'ma_nv') {
@@ -320,10 +330,13 @@ async function uploadFile4(){
   const fd=new FormData(); fd.append('file', f);
   const r=await (await fetch('/api/upload-file4',{method:'POST',body:fd})).json();
   if(r.ok){
-    await loadState(); await loadEmployees();
+    await loadState(); await loadEmployees(); refreshAiStatus();
     $('from-file4').disabled=false; $('from-file4').checked=true; renderTable();
-    document.querySelector('.tablebar').scrollIntoView({behavior:'smooth'});
-    alert('Đã tải File thứ 4 ('+(r.n_file4||0)+' người).\n\nGiờ hãy BẤM VÀO TÊN người cần làm báo cáo ở bảng dưới (dòng sẽ tô sáng), rồi bấm “Tạo cho người đã chọn”.');
+    const filled = r.ai_filled||0;
+    alert('Đã tải File thứ 4 ('+(r.n_file4||0)+' người'+(filled? ', '+filled+' người đã có nội dung AI':'')+').\n\n'
+      + (filled < (r.n_file4||0)
+          ? 'Bấm “🤖 Tự điền AI” ở ② để AI điền các cột nhận xét.'
+          : 'File đã có nội dung AI — có thể xuống Bước 3 để tạo báo cáo.'));
   } else alert('Lỗi: '+(r.error||'?'));
 }
 
